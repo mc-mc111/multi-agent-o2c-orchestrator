@@ -1,0 +1,36 @@
+# Environment variables & secrets
+.env
+.env.local
+*.env
+*.env.production
+*.env.development
+
+# Python virtual environment & cache
+venv/
+backend/venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.coverage
+
+# Node modules & build artifacts
+node_modules/
+frontend/node_modules/
+.next/
+frontend/.next/
+dist/
+out/
+build/
+
+# IDE & OS files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Database & Prisma local cache
+*.db
+*.sqlite
+.prisma
