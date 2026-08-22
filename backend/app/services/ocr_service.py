@@ -1,22 +1,21 @@
 import re
 import json
-import io
 import logging
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
-import pypdf
 from google import genai
+from google.genai import types
 from app.config import settings
 
 logger = logging.getLogger("ocr_service")
 
-# Initialize official google-genai client
+# Initialize official google-genai client for Gemini Vision multimodal analysis
 ai_client = None
 if settings.GEMINI_API_KEY:
     try:
         ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
     except Exception as e:
-        logger.warning(f"Failed to initialize google-genai client: {e}")
+        logger.warning(f"Failed to initialize google-genai Vision client: {e}")
 
 class OrderItemRequest(BaseModel):
     sku: str
@@ -33,21 +32,50 @@ def parse_json_input(raw_json: str) -> OrderRequest:
     data = json.loads(raw_json)
     return OrderRequest(**data)
 
-def extract_text_from_pdf(pdf_bytes: bytes) -> str:
-    """Extracts plain text from PDF bytes using pypdf."""
-    extracted_text = ""
+async def parse_multimodal_document_with_vision(file_bytes: bytes, filename: Optional[str] = None) -> Optional[OrderRequest]:
+    """Uses Gemini Vision Multimodal LLM (gemini-3.6-flash) to directly analyze uploaded PDF or Image documents."""
+    if not ai_client:
+        return None
     try:
-        reader = pypdf.PdfReader(io.BytesIO(pdf_bytes))
-        for page in reader.pages:
-            t = page.extract_text()
-            if t:
-                extracted_text += t + "\n"
-    except Exception as e:
-        logger.error(f"pypdf extraction error: {e}")
-    return extracted_text.strip()
+        mime_type = "application/pdf"
+        if filename:
+            fn = filename.lower()
+            if fn.endswith(".png"):
+                mime_type = "image/png"
+            elif fn.endswith(".jpg") or fn.endswith(".jpeg"):
+                mime_type = "image/jpeg"
+                
+        prompt = """
+Analyze this purchase order document image/PDF using Vision.
+Extract all order details into a strictly valid JSON object.
+Rules:
+- customer_id: Customer ID string (e.g. CUST-1001) or "UNKNOWN_CUSTOMER" if missing
+- shipping_address: Full shipping address string or null
+- billing_address: Full billing address string or null
+- items: list of objects with 'sku' (string), 'requested_qty' (integer > 0), 'unit_price' (float or null)
 
-async def parse_with_gemini(raw_content: str) -> Optional[OrderRequest]:
-    """Uses official google-genai client (MODEL_NAME) to extract structured OrderRequest JSON from multi-modal text/PDF."""
+Return ONLY raw valid JSON.
+"""
+        response = ai_client.models.generate_content(
+            model=settings.MODEL_NAME,
+            contents=[
+                types.Part.from_bytes(data=file_bytes, mime_type=mime_type),
+                prompt
+            ]
+        )
+        text_resp = response.text.strip()
+        if text_resp.startswith("```"):
+            text_resp = re.sub(r"^```[a-z]*", "", text_resp).strip()
+            text_resp = re.sub(r"```$", "", text_resp).strip()
+            
+        data = json.loads(text_resp)
+        return OrderRequest(**data)
+    except Exception as e:
+        logger.error(f"Gemini Vision multimodal document extraction failed: {e}")
+        return None
+
+async def parse_text_with_gemini(raw_content: str) -> Optional[OrderRequest]:
+    """Uses Gemini LLM to parse text payloads into structured OrderRequest."""
     if not ai_client:
         return None
     try:
@@ -59,7 +87,7 @@ Rules:
 - billing_address: Full billing address string or null
 - items: list of objects with 'sku' (string), 'requested_qty' (integer > 0), 'unit_price' (float or null)
 
-Raw Document Text:
+Raw Text:
 {raw_content}
 
 Return ONLY raw valid JSON.
@@ -76,11 +104,11 @@ Return ONLY raw valid JSON.
         data = json.loads(text_resp)
         return OrderRequest(**data)
     except Exception as e:
-        logger.warning(f"Gemini LLM extraction failed: {e}. Falling back to regex parser.")
+        logger.error(f"Gemini LLM text extraction failed: {e}")
         return None
 
-def parse_text_input(raw_text: str) -> OrderRequest:
-    """Regex parser for raw text extracting exact SKUs and quantities."""
+def parse_text_regex_fallback(raw_text: str) -> OrderRequest:
+    """Regex parser for plain text fallback."""
     cust_match = re.search(r"CUST-[A-Z0-9]+", raw_text, re.IGNORECASE)
     customer_id = cust_match.group(0).upper() if cust_match else "UNKNOWN_CUSTOMER"
     
@@ -95,7 +123,7 @@ def parse_text_input(raw_text: str) -> OrderRequest:
         ))
         
     if not items:
-        raise ValueError("Could not find any SKU codes (e.g. SKU-SERVER-01) or item quantities in input.")
+        raise ValueError("Could not find any SKU codes or item quantities in input.")
         
     return OrderRequest(
         customer_id=customer_id,
@@ -108,27 +136,27 @@ async def process_ingestion(
     file_bytes: Optional[bytes] = None,
     filename: Optional[str] = None
 ) -> OrderRequest:
-    """Stage 0 Ingestion Node: Dynamic multi-modal PDF/Text/JSON ingestion."""
+    """Stage 0 Ingestion Node: Gemini Vision Multimodal PDF/Image & Text ingestion."""
     if input_type == "json" and raw_text and raw_text.strip() and raw_text != "undefined":
         return parse_json_input(raw_text)
 
-    content_to_parse = ""
     if input_type == "file" and file_bytes:
-        if filename and filename.lower().endswith(".pdf"):
-            content_to_parse = extract_text_from_pdf(file_bytes)
-        else:
-            try:
-                content_to_parse = file_bytes.decode("utf-8", errors="ignore")
-            except Exception:
-                content_to_parse = ""
+        # Use Gemini Vision LLM directly on PDF/Image document bytes!
+        parsed_doc = await parse_multimodal_document_with_vision(file_bytes, filename)
+        if parsed_doc:
+            return parsed_doc
+        # Fallback text decoding if vision fails
+        try:
+            txt = file_bytes.decode("utf-8", errors="ignore")
+            if txt.strip():
+                return parse_text_regex_fallback(txt)
+        except Exception:
+            pass
 
-    elif raw_text and raw_text.strip() and raw_text != "undefined":
-        content_to_parse = raw_text
+    if raw_text and raw_text.strip() and raw_text != "undefined":
+        parsed_txt = await parse_text_with_gemini(raw_text)
+        if parsed_txt:
+            return parsed_txt
+        return parse_text_regex_fallback(raw_text)
 
-    if content_to_parse:
-        llm_parsed = await parse_with_gemini(content_to_parse)
-        if llm_parsed:
-            return llm_parsed
-        return parse_text_input(content_to_parse)
-
-    raise ValueError("Empty or unreadable order input provided. Please provide text, JSON, or a PDF file.")
+    raise ValueError("Empty or unreadable order input. Please provide text, JSON, or upload a document.")
