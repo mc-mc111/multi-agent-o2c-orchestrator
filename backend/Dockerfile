@@ -1,7 +1,10 @@
 FROM python:3.13-slim
 
-# System dependencies for PostgreSQL client libraries
+# System dependencies for Tesseract OCR, Poppler (PDF rendering), and PostgreSQL client libraries
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    tesseract-ocr \
+    libtesseract-dev \
+    poppler-utils \
     libpq-dev \
     gcc \
     && rm -rf /var/lib/apt/lists/*

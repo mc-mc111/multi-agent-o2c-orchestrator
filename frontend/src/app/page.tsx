@@ -7,6 +7,7 @@ import { LoginModal } from '@/components/LoginModal';
 import { InventoryQuickBar } from '@/components/InventoryQuickBar';
 import { IngestionPanel } from '@/components/IngestionPanel';
 import { StepByStepTelemetry } from '@/components/StepByStepTelemetry';
+import { DocumentInspector } from '@/components/DocumentInspector';
 import { InventoryManager } from '@/components/InventoryManager';
 import { UserManager } from '@/components/UserManager';
 import { AuditLogsPage } from '@/components/AuditLogsPage';
@@ -188,30 +189,36 @@ function MainApp() {
             {!currentState ? (
               <IngestionPanel onExecute={handleExecute} isExecuting={isExecuting} />
             ) : (
-              <StepByStepTelemetry
-                currentState={currentState}
-                isExecuting={isExecuting}
-                onResetToInput={() => setCurrentState(null)}
-                onOpenExceptionModal={() => setIsExceptionModalOpen(true)}
-                onOpenValidationErrorModal={() => setIsValidationModalOpen(true)}
-                onOpenAuditModal={() => setIsAuditModalOpen(true)}
-                onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
-                onApproveOrder={() => {
-                  setCurrentState((prev: any) => ({
-                    ...(prev || {}),
-                    overall_status: "COMPLETED",
-                    audit_logs: [
-                      ...(prev?.audit_logs || []),
-                      {
-                        agent_name: "RiskAgent",
-                        status: "SUCCESS",
-                        message: "Manual Admin Approval Granted. Risk flag overridden.",
-                        timestamp: new Date().toISOString()
-                      }
-                    ]
-                  }));
-                }}
-              />
+              <div className="space-y-6">
+                {/* DUAL-PANEL DOCUMENT INSPECTOR WITH BOUNDING BOX HIGHLIGHTS */}
+                <DocumentInspector orderData={currentState} />
+
+                {/* STEPPER TELEMETRY PROGRESS */}
+                <StepByStepTelemetry
+                  currentState={currentState}
+                  isExecuting={isExecuting}
+                  onResetToInput={() => setCurrentState(null)}
+                  onOpenExceptionModal={() => setIsExceptionModalOpen(true)}
+                  onOpenValidationErrorModal={() => setIsValidationModalOpen(true)}
+                  onOpenAuditModal={() => setIsAuditModalOpen(true)}
+                  onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+                  onApproveOrder={() => {
+                    setCurrentState((prev: any) => ({
+                      ...(prev || {}),
+                      overall_status: "COMPLETED",
+                      audit_logs: [
+                        ...(prev?.audit_logs || []),
+                        {
+                          agent_name: "RiskAgent",
+                          status: "SUCCESS",
+                          message: "Manual Admin Approval Granted. Risk flag overridden.",
+                          timestamp: new Date().toISOString()
+                        }
+                      ]
+                    }));
+                  }}
+                />
+              </div>
             )}
           </div>
         )}
