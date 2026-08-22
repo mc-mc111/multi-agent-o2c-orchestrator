@@ -51,6 +51,9 @@ export const TransactionManager: React.FC = () => {
       const data = await res.json();
       if (res.ok) {
         setActionMsg(`Order ${orderId} cancelled successfully! Unreserved: ${data.unreserved?.join(', ') || 'No reserved stock'}`);
+        setOrders((prev) =>
+          prev.map((o) => (o.id === orderId ? { ...o, status: 'CANCELLED' } : o))
+        );
         fetchOrders();
       } else {
         setActionMsg(`Failed to cancel: ${data.detail || 'Error'}`);

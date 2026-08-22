@@ -241,12 +241,6 @@ async def get_invoice_html(invoice_id: str):
         return Response(content=invoice_cache[invoice_id]["html"], media_type="text/html")
     return Response(content="<h1>Invoice Not Found</h1>", media_type="text/html", status_code=404)
 
-@router.get("/orders")
-async def list_orders(session: AsyncSession = Depends(get_async_session)):
-    stmt = select(Order).order_by(Order.created_at.desc())
-    orders = (await session.execute(stmt)).scalars().all()
-    return orders
-
 @router.get("/inventory")
 async def list_inventory(session: AsyncSession = Depends(get_async_session)):
     stmt = select(InventorySKU)
