@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Activity, RefreshCw, XCircle, Eye, ShieldAlert, CheckCircle2, FileText, Layers, AlertTriangle, Clock } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -58,6 +59,11 @@ export const TransactionManager: React.FC = () => {
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [orderDetail, setOrderDetail] = useState<OrderDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const fetchOrders = async () => {
     setLoading(true);
@@ -242,8 +248,8 @@ export const TransactionManager: React.FC = () => {
       </Card>
 
       {/* Order Detail Modal / Inspector Panel */}
-      {selectedOrderId && (
-        <div className="fixed inset-0 z-[100] w-screen h-screen top-0 left-0 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in">
+      {mounted && selectedOrderId && createPortal(
+        <div className="fixed inset-0 z-[999] w-screen h-screen top-0 left-0 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
               <div>
@@ -422,8 +428,9 @@ export const TransactionManager: React.FC = () => {
               </div>
             ) : null}
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      ) as unknown as React.ReactElement}
     </div>
   );
 };

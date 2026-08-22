@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { AlertTriangle, RefreshCw, CheckCircle, Package } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 import { Button } from '@/components/ui/button';
@@ -31,6 +32,9 @@ export const InventoryExceptionModal: React.FC<InventoryExceptionModalProps> = (
   const [chosenSubstituteSku, setChosenSubstituteSku] = useState<string>('');
   const [resolving, setResolving] = useState(false);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
   useEffect(() => {
     if (isOpen) {
       fetch(`${getApiBaseUrl()}/api/v1/inventory`)
@@ -46,7 +50,7 @@ export const InventoryExceptionModal: React.FC<InventoryExceptionModalProps> = (
     }
   }, [isOpen]);
 
-  if (!isOpen || !exceptions || exceptions.length === 0) return null;
+  if (!isOpen || !mounted || !exceptions || exceptions.length === 0) return null;
 
   const handleConfirmResolution = async () => {
     setResolving(true);
@@ -74,8 +78,8 @@ export const InventoryExceptionModal: React.FC<InventoryExceptionModalProps> = (
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[999] w-screen h-screen top-0 left-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
       <Card className="w-full max-w-lg shadow-2xl border-amber-500/40">
         <CardHeader className="bg-amber-500/10 border-b border-amber-500/20 py-4">
           <div className="flex items-center space-x-2">
@@ -195,6 +199,7 @@ export const InventoryExceptionModal: React.FC<InventoryExceptionModalProps> = (
           </Button>
         </CardFooter>
       </Card>
-    </div>
-  );
+    </div>,
+    document.body
+  ) as unknown as React.ReactElement;
 };

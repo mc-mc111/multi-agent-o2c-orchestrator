@@ -36,32 +36,30 @@ export const Sidebar: React.FC<SidebarProps> = ({
   ];
 
   return (
-    <aside className={`border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between p-3 h-screen select-none transition-all duration-300 ${
+    <aside className={`relative border-r border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex flex-col justify-between p-3 h-screen select-none transition-all duration-300 ${
       isCollapsed ? 'w-20' : 'w-64'
     }`}>
+      {/* Floating Center Toggle Button */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="absolute -right-3.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shadow-md text-slate-600 dark:text-slate-300 hover:bg-sky-50 dark:hover:bg-slate-700 flex items-center justify-center z-30 transition-all"
+        title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
+      >
+        {isCollapsed ? <ChevronRight className="h-4 w-4 text-sky-500" /> : <ChevronLeft className="h-4 w-4 text-sky-500" />}
+      </button>
+
       <div className="space-y-6">
-        {/* Brand & Collapse Toggle */}
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center space-x-3 overflow-hidden">
-            <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
-              <Cpu className="h-5 w-5" />
-            </div>
-            {!isCollapsed && (
-              <div className="overflow-hidden">
-                <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-none truncate">SUPERVITY O2C</h1>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 truncate">Multi-Agent Engine</p>
-              </div>
-            )}
+        {/* Brand */}
+        <div className="flex items-center space-x-3 px-1 overflow-hidden">
+          <div className="h-10 w-10 shrink-0 rounded-xl bg-gradient-to-br from-sky-500 to-indigo-600 flex items-center justify-center text-white shadow-md">
+            <Cpu className="h-5 w-5" />
           </div>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsCollapsed(!isCollapsed)}
-            className="h-8 w-8 text-slate-500 hover:text-slate-900 dark:hover:text-white shrink-0 ml-1"
-            title={isCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </Button>
+          {!isCollapsed && (
+            <div className="overflow-hidden">
+              <h1 className="text-sm font-bold text-slate-900 dark:text-white leading-none truncate">SUPERVITY O2C</h1>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 font-mono mt-0.5 truncate">Multi-Agent Engine</p>
+            </div>
+          )}
         </div>
 
         {/* Nav Items */}

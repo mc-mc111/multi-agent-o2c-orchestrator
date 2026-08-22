@@ -1,6 +1,7 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Activity, CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 interface AuditTrailModalProps {
@@ -16,10 +17,13 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
   orderId,
   auditLogs
 }) => {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+  if (!isOpen || !mounted) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[999] w-screen h-screen top-0 left-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
       <div className="w-full max-w-2xl glass-panel rounded-2xl border border-slate-800 p-6 shadow-2xl">
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center space-x-3">
@@ -71,6 +75,7 @@ export const AuditTrailModal: React.FC<AuditTrailModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) as unknown as React.ReactElement;
 };

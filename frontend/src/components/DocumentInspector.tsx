@@ -57,11 +57,19 @@ export const DocumentInspector: React.FC<DocumentInspectorProps> = ({ orderData,
         {/* Viewport Canvas with Highlight Overlays */}
         <div className="relative w-full aspect-[1/1.2] bg-slate-50 dark:bg-slate-950 p-4 flex items-center justify-center overflow-hidden">
           {filePreviewUrl ? (
-            <iframe
-              src={filePreviewUrl}
-              className="w-full h-full rounded-lg border border-slate-200 dark:border-slate-800 pointer-events-none"
-              title="Document Preview"
-            />
+            filePreviewUrl.match(/\.(png|jpg|jpeg)$/i) || filePreviewUrl.startsWith("data:image/") ? (
+              <img
+                src={filePreviewUrl}
+                alt="Document Preview"
+                className="w-full h-full object-contain rounded-lg border border-slate-200 dark:border-slate-800"
+              />
+            ) : (
+              <iframe
+                src={filePreviewUrl}
+                className="w-full h-full rounded-lg border border-slate-200 dark:border-slate-800 pointer-events-none"
+                title="Document Preview"
+              />
+            )
           ) : (
             <div className="w-full h-full rounded-xl border border-dashed border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-6 flex flex-col justify-start relative shadow-inner">
               <div className="text-[10px] font-mono text-slate-400 mb-2">PURCHASE ORDER DOCUMENT PREVIEW</div>

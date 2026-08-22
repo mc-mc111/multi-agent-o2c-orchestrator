@@ -28,6 +28,8 @@ function MainApp() {
   const [currentState, setCurrentState] = useState<any>(null);
   const [parsedPreview, setParsedPreview] = useState<any>(null);
   const [activeEventSource, setActiveEventSource] = useState<EventSource | null>(null);
+  const [activeStage, setActiveStage] = useState<'ocr' | 'agents'>('ocr');
+  const [filePreviewUrl, setFilePreviewUrl] = useState<string | null>(null);
 
   // Modals
   const [isExceptionModalOpen, setIsExceptionModalOpen] = useState(false);
@@ -67,11 +69,14 @@ function MainApp() {
     }
   };
 
-  // Execute Orchestrator Trigger
+  // Stage 1 Ingestion Node
   const handleExecute = async (inputType: string, textPayload?: string, file?: File | null) => {
-    setIsExecuting(true);
-    if (activeEventSource) {
-      activeEventSource.close();
+    setIsExecuting(false);
+    if (file) {
+      const url = URL.createObjectURL(file);
+      setFilePreviewUrl(url);
+    } else {
+      setFilePreviewUrl(null);
     }
 
     try {
@@ -96,40 +101,50 @@ function MainApp() {
       const data = await res.json();
       setParsedPreview(data.parsed_payload);
       setCurrentState(data.initial_state);
-
-      // Start SSE Stream
-      const es = new EventSource(`${getApiBaseUrl()}/api/v1/orchestrate/stream?order_id=${data.order_id}`);
-      setActiveEventSource(es);
-
-      es.addEventListener("state_update", (event: MessageEvent) => {
-        try {
-          const update = JSON.parse(event.data);
-          setCurrentState((prev: any) => ({
-            ...(prev || {}),
-            ...(update.state || {})
-          }));
-
-          const status = update.state?.overall_status;
-          if (status === 'COMPLETED' || status === 'HELD_FOR_REVIEW' || status === 'HELD_FOR_DECISION' || status === 'FAILED') {
-            setIsExecuting(false);
-            if (status === 'HELD_FOR_DECISION') {
-              setIsExceptionModalOpen(true);
-            }
-          }
-        } catch (err) {
-          console.error("SSE JSON Parse Error", err);
-        }
-      });
-
-      es.onerror = (err) => {
-        console.error("SSE Connection Error", err);
-        es.close();
-        setIsExecuting(false);
-      };
+      setActiveStage('ocr'); // Show Stage 1 OCR Inspector first!
     } catch (err) {
       console.error("Ingestion failed", err);
-      setIsExecuting(false);
     }
+  };
+
+  // Stage 2 Trigger Agent Execution
+  const handleStartAgentExecution = () => {
+    if (!currentState?.order_id) return;
+    setIsExecuting(true);
+    setActiveStage('agents'); // Switch to Stage 2 Agents!
+
+    if (activeEventSource) {
+      activeEventSource.close();
+    }
+
+    const es = new EventSource(`${getApiBaseUrl()}/api/v1/orchestrate/stream?order_id=${currentState.order_id}`);
+    setActiveEventSource(es);
+
+    es.addEventListener("state_update", (event: MessageEvent) => {
+      try {
+        const update = JSON.parse(event.data);
+        setCurrentState((prev: any) => ({
+          ...(prev || {}),
+          ...(update.state || {})
+        }));
+
+        const status = update.state?.overall_status;
+        if (status === 'COMPLETED' || status === 'HELD_FOR_REVIEW' || status === 'HELD_FOR_DECISION' || status === 'FAILED') {
+          setIsExecuting(false);
+          if (status === 'HELD_FOR_DECISION') {
+            setIsExceptionModalOpen(true);
+          }
+        }
+      } catch (err) {
+        console.error("SSE JSON Parse Error", err);
+      }
+    });
+
+    es.onerror = (err) => {
+      console.error("SSE Connection Error", err);
+      es.close();
+      setIsExecuting(false);
+    };
   };
 
   const handleResumeAfterException = () => {
@@ -186,39 +201,99 @@ function MainApp() {
             {/* Quick Live Neon DB Inventory Reference Bar */}
             <InventoryQuickBar />
 
-            {/* Stage 0 Ingestion vs Step-by-Step Telemetry view */}
+            {/* Ingestion Panel when no order active */}
             {!currentState ? (
               <IngestionPanel onExecute={handleExecute} isExecuting={isExecuting} />
             ) : (
               <div className="space-y-6">
-                {/* DUAL-PANEL DOCUMENT INSPECTOR WITH BOUNDING BOX HIGHLIGHTS */}
-                <DocumentInspector orderData={currentState} />
+                {/* STAGED WORKFLOW HEADER BAR */}
+                <div className="flex items-center justify-between bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl border border-slate-200 dark:border-slate-800">
+                  <div className="flex space-x-2">
+                    <button
+                      onClick={() => setActiveStage('ocr')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 ${
+                        activeStage === 'ocr'
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <span>Stage 1: Document OCR & Bounding Box Inspector</span>
+                    </button>
+                    <button
+                      onClick={() => setActiveStage('agents')}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold transition flex items-center space-x-2 ${
+                        activeStage === 'agents'
+                          ? 'bg-sky-600 text-white shadow-sm'
+                          : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                      }`}
+                    >
+                      <span>Stage 2: Multi-Agent Execution Telemetry</span>
+                    </button>
+                  </div>
 
-                {/* STEPPER TELEMETRY PROGRESS */}
-                <StepByStepTelemetry
-                  currentState={currentState}
-                  isExecuting={isExecuting}
-                  onResetToInput={() => setCurrentState(null)}
-                  onOpenExceptionModal={() => setIsExceptionModalOpen(true)}
-                  onOpenValidationErrorModal={() => setIsValidationModalOpen(true)}
-                  onOpenAuditModal={() => setIsAuditModalOpen(true)}
-                  onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
-                  onApproveOrder={() => {
-                    setCurrentState((prev: any) => ({
-                      ...(prev || {}),
-                      overall_status: "COMPLETED",
-                      audit_logs: [
-                        ...(prev?.audit_logs || []),
-                        {
-                          agent_name: "RiskAgent",
-                          status: "SUCCESS",
-                          message: "Manual Admin Approval Granted. Risk flag overridden.",
-                          timestamp: new Date().toISOString()
-                        }
-                      ]
-                    }));
-                  }}
-                />
+                  <button
+                    onClick={() => {
+                      setCurrentState(null);
+                      setParsedPreview(null);
+                      setFilePreviewUrl(null);
+                    }}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition"
+                  >
+                    Reset & Ingest New Document
+                  </button>
+                </div>
+
+                {/* STAGE 1: OCR & DUAL-PANEL BOUNDING BOX INSPECTOR */}
+                {activeStage === 'ocr' && (
+                  <div className="space-y-6">
+                    <DocumentInspector orderData={currentState} filePreviewUrl={filePreviewUrl} />
+
+                    {/* CALL TO ACTION TO RUN MULTI-AGENT PIPELINE */}
+                    <div className="p-5 rounded-2xl bg-gradient-to-r from-sky-900/40 to-indigo-900/40 border border-sky-500/30 flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-bold text-white">Ready to Execute Order-to-Cash Agents?</h4>
+                        <p className="text-xs text-sky-200 mt-0.5">
+                          Extracted fields ready. Run ValidationAgent, InventoryAgent, BillingAgent, and RiskAgent.
+                        </p>
+                      </div>
+                      <button
+                        onClick={handleStartAgentExecution}
+                        disabled={isExecuting}
+                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-sky-500 to-indigo-600 text-white text-xs font-bold shadow-lg hover:from-sky-400 hover:to-indigo-500 transition"
+                      >
+                        🚀 Run Multi-Agent Orchestrator
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* STAGE 2: STEPPER TELEMETRY & DECISION GRAPH */}
+                {activeStage === 'agents' && (
+                  <StepByStepTelemetry
+                    currentState={currentState}
+                    isExecuting={isExecuting}
+                    onResetToInput={() => setCurrentState(null)}
+                    onOpenExceptionModal={() => setIsExceptionModalOpen(true)}
+                    onOpenValidationErrorModal={() => setIsValidationModalOpen(true)}
+                    onOpenAuditModal={() => setIsAuditModalOpen(true)}
+                    onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+                    onApproveOrder={() => {
+                      setCurrentState((prev: any) => ({
+                        ...(prev || {}),
+                        overall_status: "COMPLETED",
+                        audit_logs: [
+                          ...(prev?.audit_logs || []),
+                          {
+                            agent_name: "RiskAgent",
+                            status: "SUCCESS",
+                            message: "Manual Admin Approval Granted. Risk flag overridden.",
+                            timestamp: new Date().toISOString()
+                          }
+                        ]
+                      }));
+                    }}
+                  />
+                )}
               </div>
             )}
           </div>

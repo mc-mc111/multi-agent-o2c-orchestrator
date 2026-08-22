@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, ShieldAlert, Check } from 'lucide-react';
 
 interface ValidationErrorModalProps {
@@ -25,7 +26,10 @@ export const ValidationErrorModal: React.FC<ValidationErrorModalProps> = ({
   const [customerId, setCustomerId] = useState(initialCustomerId || "CUST-1001");
   const [address, setAddress] = useState(initialAddress || "100 Innovation Way, Austin TX");
 
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!isOpen || !mounted) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -33,8 +37,8 @@ export const ValidationErrorModal: React.FC<ValidationErrorModalProps> = ({
     onClose();
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[999] w-screen h-screen top-0 left-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
       <div className="w-full max-w-md glass-panel rounded-2xl border border-rose-500/40 p-6 shadow-2xl">
         <div className="flex items-center justify-between pb-3 border-b border-slate-800">
           <div className="flex items-center space-x-3">
@@ -98,6 +102,7 @@ export const ValidationErrorModal: React.FC<ValidationErrorModalProps> = ({
           </div>
         </form>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) as unknown as React.ReactElement;
 };

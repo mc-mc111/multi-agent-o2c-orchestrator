@@ -1,6 +1,7 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { X, FileText, Download } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 
@@ -19,14 +20,17 @@ export const InvoiceViewerModal: React.FC<InvoiceViewerModalProps> = ({
   pdfUrl,
   htmlUrl
 }) => {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+
+  if (!isOpen || !mounted) return null;
 
   const fullPdfUrl = pdfUrl
     ? (pdfUrl.startsWith("http") ? pdfUrl : `${getApiBaseUrl()}${pdfUrl}`)
     : `${getApiBaseUrl()}/api/v1/invoices/${invoiceId}/pdf`;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
+  return createPortal(
+    <div className="fixed inset-0 z-[999] w-screen h-screen top-0 left-0 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4">
       <div className="w-full max-w-4xl h-[85vh] glass-panel rounded-2xl border border-sky-500/30 flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-900/90">
@@ -65,6 +69,7 @@ export const InvoiceViewerModal: React.FC<InvoiceViewerModalProps> = ({
           />
         </div>
       </div>
-    </div>
-  );
+    </div>,
+    document.body
+  ) as unknown as React.ReactElement;
 };

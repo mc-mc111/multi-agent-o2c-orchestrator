@@ -137,9 +137,9 @@ export const IngestionPanel: React.FC<IngestionPanelProps> = ({ onExecute, isExe
             </div>
           )}
 
-          <Button type="submit" disabled={isExecuting} size="lg" className="w-full font-bold text-sm">
+          <Button type="submit" disabled={isExecuting} size="lg" className="w-full font-bold text-sm bg-sky-600 hover:bg-sky-500 text-white shadow-md">
             <Send className="h-4 w-4 mr-2" />
-            <span>{isExecuting ? "Initializing Agents..." : "Execute O2C Orchestrator"}</span>
+            <span>{isExecuting ? "Extracting Document Fields & Bounding Boxes..." : "🔍 Extract Document Fields & Inspect Bounding Boxes (Stage 1)"}</span>
           </Button>
         </form>
       </CardContent>
