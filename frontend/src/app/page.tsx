@@ -4,7 +4,6 @@ import React, { useState, useEffect } from 'react';
 import { ThemeProvider } from '@/context/ThemeContext';
 import { Sidebar, ActiveTab } from '@/components/Sidebar';
 import { LoginModal } from '@/components/LoginModal';
-import { InventoryQuickBar } from '@/components/InventoryQuickBar';
 import { IngestionPanel } from '@/components/IngestionPanel';
 import { StepByStepTelemetry } from '@/components/StepByStepTelemetry';
 import { InventoryManager } from '@/components/InventoryManager';
@@ -185,9 +184,6 @@ function MainApp() {
       <main className="flex-1 overflow-y-auto p-6">
         {activeTab === 'orchestrator' && (
           <div className="max-w-6xl mx-auto space-y-6">
-            {/* Quick Live Neon DB Inventory Reference Bar */}
-            <InventoryQuickBar />
-
             {!currentState ? (
               /* Ingestion Panel — shown when no active order */
               <IngestionPanel onExecute={handleExecute} isExecuting={isExecuting} />

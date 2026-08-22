@@ -8,6 +8,7 @@ Each node:
   4. Uses that decision to drive the DB mutation & audit log
   5. Falls back to conservative rule-based logic only if the LLM call fails
 """
+import asyncio
 import json
 import logging
 import re
