@@ -1,10 +1,11 @@
 import json
 import asyncio
 import uuid
+import re
 import logging
 from datetime import datetime
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, File, UploadFile, Form, HTTPException, Request, Response
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, Response
 from sse_starlette.sse import EventSourceResponse
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_async_session
 from app.db.models import Order, Customer, InventorySKU, OrderItem, AuditLog, Invoice
 from app.db.seed import seed_database
-from app.services.ocr_service import process_ingestion, OrderRequest
 from app.services.cloudinary_service import upload_file_to_cloudinary
 from app.services.invoice_service import invoice_cache
 from app.agents.graph import o2c_graph
@@ -20,6 +20,45 @@ from app.agents.state import O2CState
 
 logger = logging.getLogger("orchestrator_api")
 router = APIRouter(prefix="/api/v1", tags=["Orchestrator"])
+
+# ---------------------------------------------------------------------------
+# Inline ingestion parser (text + JSON only — no OCR / vision / tesseract)
+# ---------------------------------------------------------------------------
+def _parse_text_order(raw_text: str) -> dict:
+    """Regex-based fallback for unstructured text/email purchase orders."""
+    cust_match = re.search(r"CUST-[A-Z0-9]+", raw_text, re.IGNORECASE)
+    customer_id = cust_match.group(0).upper() if cust_match else "UNKNOWN_CUSTOMER"
+
+    addr_match = re.search(r"[Ss]hip(?:ping|\s+to)?[:\s]+([^\n]+)", raw_text)
+    shipping_address = addr_match.group(1).strip() if addr_match else None
+
+    sku_pattern = r"(SKU-[A-Z0-9-]+)[^\d]+(\d+)(?:[^\d.]*?([\d]+(?:\.\d+)?))?"
+    items = []
+    for m in re.finditer(sku_pattern, raw_text, re.IGNORECASE):
+        sku = m.group(1).upper()
+        qty = int(m.group(2))
+        price = float(m.group(3)) if m.group(3) else None
+        items.append({"sku": sku, "requested_qty": qty, "unit_price": price})
+
+    if not items:
+        raise ValueError("Could not find any SKU codes in the input text. Please use format: SKU-XXXX: N units")
+
+    return {"customer_id": customer_id, "shipping_address": shipping_address, "billing_address": None, "items": items}
+
+
+def _parse_json_order(raw_json: str) -> dict:
+    """Parse structured JSON purchase order payload."""
+    data = json.loads(raw_json)
+    if not data.get("customer_id"):
+        raise ValueError("JSON payload missing 'customer_id' field.")
+    if not data.get("items"):
+        raise ValueError("JSON payload missing 'items' array.")
+    return {
+        "customer_id": data["customer_id"],
+        "shipping_address": data.get("shipping_address"),
+        "billing_address": data.get("billing_address"),
+        "items": data["items"]
+    }
 
 active_executions: Dict[str, O2CState] = {}
 
@@ -34,38 +73,29 @@ async def trigger_seed():
 
 @router.post("/ingest")
 async def ingest_order(
-    input_type: str = Form("text"), # text, json, file
-    raw_text: Optional[str] = Form(None),
-    file: Optional[UploadFile] = File(None)
+    input_type: str = Form("text"),  # text or json
+    raw_text: Optional[str] = Form(None)
 ):
-    """Stage 0 Ingestion API Node."""
-    file_bytes = None
-    filename = None
-    file_url = None
-    
-    if file:
-        file_bytes = await file.read()
-        filename = file.filename
-        file_url = await upload_file_to_cloudinary(file_bytes, filename, folder="supervity")
-        
+    """Stage 0 Ingestion Node — parses text or JSON purchase order payloads."""
     try:
-        parsed_order = await process_ingestion(
-            input_type=input_type,
-            raw_text=raw_text,
-            file_bytes=file_bytes,
-            filename=filename
-        )
-        
+        if input_type == "json" and raw_text and raw_text.strip():
+            parsed = _parse_json_order(raw_text)
+        elif raw_text and raw_text.strip():
+            parsed = _parse_text_order(raw_text)
+        else:
+            raise ValueError("No order content provided. Please supply text or JSON.")
+
         order_id = f"ORD-2026-{uuid.uuid4().hex[:6].upper()}"
-        
+
         initial_state: O2CState = {
             "order_id": order_id,
-            "customer_id": parsed_order.customer_id,
-            "shipping_address": parsed_order.shipping_address,
-            "billing_address": parsed_order.billing_address,
-            "input_items": [item.model_dump() for item in parsed_order.items],
+            "customer_id": parsed["customer_id"],
+            "shipping_address": parsed.get("shipping_address"),
+            "billing_address": parsed.get("billing_address"),
+            "input_items": parsed["items"],
             "validation_status": "PENDING",
             "validation_errors": [],
+            "validation_warnings": [],
             "customer_name": None,
             "customer_email": None,
             "inventory_status": "PENDING",
@@ -88,23 +118,22 @@ async def ingest_order(
             "audit_logs": [{
                 "agent_name": "IngestionNode",
                 "status": "SUCCESS",
-                "message": f"Multi-modal payload parsed ({input_type.upper()}). Order {order_id} initialized.",
-                "payload": {"parsed": parsed_order.model_dump(), "file_url": file_url},
-                "timestamp": "2026-08-22T11:45:00Z"
+                "message": f"Order payload parsed ({input_type.upper()}). {len(parsed['items'])} line item(s) extracted. Order {order_id} initialized.",
+                "payload": {"parsed": parsed},
+                "timestamp": datetime.utcnow().isoformat()
             }]
         }
-        
+
         active_executions[order_id] = initial_state
-        
+
         return {
             "order_id": order_id,
-            "file_url": file_url,
-            "parsed_payload": parsed_order,
+            "parsed_payload": parsed,
             "initial_state": initial_state
         }
     except Exception as e:
         logger.error(f"Ingestion failed: {e}")
-        raise HTTPException(status_code=400, detail=f"Failed to parse ingestion payload: {str(e)}")
+        raise HTTPException(status_code=400, detail=f"Failed to parse order payload: {str(e)}")
 
 @router.get("/orchestrate/stream")
 async def stream_orchestration(order_id: str, request: Request):
