@@ -356,47 +356,65 @@ async def list_all_orders(session: AsyncSession = Depends(get_async_session)):
 async def cancel_order_and_unreserve_stock(order_id: str, session: AsyncSession = Depends(get_async_session)):
     unreserved_details = []
     
-    # 1. Update in-memory active execution state
+    # 1. Update in-memory active execution state & unreserve in-memory stock
     if order_id in active_executions:
-        active_executions[order_id]["overall_status"] = "CANCELLED"
-        active_executions[order_id]["validation_status"] = "CANCELLED"
-        
+        mem_state = active_executions[order_id]
+        if mem_state.get("overall_status") != "CANCELLED":
+            mem_state["overall_status"] = "CANCELLED"
+            mem_state["validation_status"] = "CANCELLED"
+            reservations = mem_state.get("inventory_reservations", [])
+            for res in reservations:
+                alloc = res.get("allocated_qty", 0)
+                if alloc > 0:
+                    sku_stmt = select(InventorySKU).where(InventorySKU.sku == res["sku"])
+                    sku_obj = (await session.execute(sku_stmt)).scalar_one_or_none()
+                    if sku_obj:
+                        sku_obj.available_quantity += alloc
+                        sku_obj.reserved_quantity = max(0, sku_obj.reserved_quantity - alloc)
+                        session.add(sku_obj)
+                        unreserved_details.append(f"Restored {alloc} units of {res['sku']}")
+                    res["allocated_qty"] = 0
+
     # 2. Update DB order object if present
     try:
         stmt = select(Order).where(Order.id == order_id)
         order_obj = (await session.execute(stmt)).scalar_one_or_none()
         
         if order_obj:
-            item_stmt = select(OrderItem).where(OrderItem.order_id == order_id)
-            items = (await session.execute(item_stmt)).scalars().all()
-            
-            for item in items:
-                if item.allocated_qty > 0:
-                    sku_stmt = select(InventorySKU).where(InventorySKU.sku == item.sku)
-                    sku_obj = (await session.execute(sku_stmt)).scalar_one_or_none()
-                    if sku_obj:
-                        sku_obj.available_quantity += item.allocated_qty
-                        sku_obj.reserved_quantity = max(0, sku_obj.reserved_quantity - item.allocated_qty)
-                        session.add(sku_obj)
-                        unreserved_details.append(f"Restored {item.allocated_qty} units of {item.sku}")
-                        
-            order_obj.status = "CANCELLED"
-            order_obj.updated_at = datetime.utcnow()
-            session.add(order_obj)
-            
-            audit = AuditLog(
-                order_id=order_id,
-                agent_name="TransactionManager",
-                status="CANCELLED",
-                message=f"Order cancelled by admin. Stock unreserved: {', '.join(unreserved_details) if unreserved_details else 'None'}"
-            )
-            session.add(audit)
-            await session.commit()
+            if order_obj.status != "CANCELLED":
+                item_stmt = select(OrderItem).where(OrderItem.order_id == order_id)
+                items = (await session.execute(item_stmt)).scalars().all()
+                
+                for item in items:
+                    if item.allocated_qty > 0:
+                        sku_stmt = select(InventorySKU).where(InventorySKU.sku == item.sku)
+                        sku_obj = (await session.execute(sku_stmt)).scalar_one_or_none()
+                        if sku_obj:
+                            sku_obj.available_quantity += item.allocated_qty
+                            sku_obj.reserved_quantity = max(0, sku_obj.reserved_quantity - item.allocated_qty)
+                            session.add(sku_obj)
+                            unreserved_details.append(f"Restored {item.allocated_qty} units of {item.sku}")
+                        item.allocated_qty = 0
+                        session.add(item)
+                            
+                order_obj.status = "CANCELLED"
+                order_obj.updated_at = datetime.utcnow()
+                session.add(order_obj)
+                
+                audit = AuditLog(
+                    order_id=order_id,
+                    agent_name="TransactionManager",
+                    status="CANCELLED",
+                    message=f"Order cancelled by admin. Stock unreserved: {', '.join(unreserved_details) if unreserved_details else 'None'}"
+                )
+                session.add(audit)
+                
+        await session.commit()
     except Exception as e:
         logger.error(f"Error restoring stock in DB for cancelled order {order_id}: {e}")
 
     return {
         "status": "success",
-        "message": f"Order {order_id} cancelled successfully.",
+        "message": f"Order {order_id} marked as CANCELLED.",
         "unreserved": unreserved_details
     }

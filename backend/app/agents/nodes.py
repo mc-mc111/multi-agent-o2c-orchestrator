@@ -205,6 +205,18 @@ async def inventory_node(state: O2CState) -> Dict[str, Any]:
                 "line_total": allocated_qty * unit_price
             })
             
+            # Persist OrderItem row in PostgreSQL
+            oi = OrderItem(
+                order_id=state["order_id"],
+                sku=sku_code,
+                requested_qty=requested_qty,
+                allocated_qty=allocated_qty,
+                backordered_qty=backordered_qty,
+                unit_price=unit_price,
+                line_total=allocated_qty * unit_price
+            )
+            session.add(oi)
+            
         new_status = "HELD_FOR_DECISION" if (exceptions and not human_res) else "INVENTORY_CHECK"
         await _save_or_update_order(session, state, status=new_status)
         await session.commit()
