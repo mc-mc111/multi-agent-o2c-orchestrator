@@ -288,6 +288,7 @@ async def billing_node(state: O2CState) -> Dict[str, Any]:
     
     return {
         "billing_status": "INVOICE_GENERATED",
+        "inventory_reservations": reservations,
         "subtotal": subtotal,
         "tax_amount": tax_amount,
         "shipping_cost": shipping_cost,
@@ -384,6 +385,16 @@ async def risk_node(state: O2CState) -> Dict[str, Any]:
         "risk_status": risk_level,
         "risk_score": risk_score,
         "risk_flags": risk_flags,
+        "inventory_reservations": state.get("inventory_reservations", []),
+        "subtotal": state.get("subtotal", 0.0),
+        "tax_amount": state.get("tax_amount", 0.0),
+        "shipping_cost": state.get("shipping_cost", 0.0),
+        "total_amount": total_amount,
+        "invoice_id": state.get("invoice_id"),
+        "invoice_pdf_url": state.get("invoice_pdf_url"),
+        "invoice_html_url": state.get("invoice_html_url"),
+        "customer_name": state.get("customer_name"),
+        "customer_email": state.get("customer_email"),
         "current_agent": "RiskAgent",
         "overall_status": overall_status,
         "audit_logs": audit_logs

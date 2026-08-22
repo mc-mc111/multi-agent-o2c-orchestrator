@@ -119,18 +119,19 @@ async def stream_orchestration(order_id: str, request: Request):
             "data": json.dumps({"agent": "IngestionNode", "state": state})
         }
         
-        # Execute LangGraph asynchronously
+        # Execute LangGraph asynchronously, accumulating state across all agent nodes
+        running_state = dict(state)
         try:
             async for step_output in o2c_graph.astream(state):
                 for node_name, node_state in step_output.items():
-                    active_executions[order_id] = {**state, **node_state}
-                    current_state = active_executions[order_id]
+                    running_state = {**running_state, **node_state}
+                    active_executions[order_id] = running_state
                     
                     yield {
                         "event": "state_update",
                         "data": json.dumps({
                             "agent": node_name,
-                            "state": current_state
+                            "state": running_state
                         })
                     }
                     await asyncio.sleep(0.5) # smooth animation pace for UI
