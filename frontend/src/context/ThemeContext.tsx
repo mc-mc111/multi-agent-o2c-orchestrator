@@ -16,21 +16,27 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme') as Theme | null;
-    if (savedTheme === 'light' || savedTheme === 'dark') {
-      setTheme(savedTheme);
-      document.documentElement.classList.toggle('dark', savedTheme === 'dark');
-      document.documentElement.classList.toggle('light', savedTheme === 'light');
-    } else {
-      document.documentElement.classList.add('dark');
-    }
+    const initialTheme = (savedTheme === 'light' || savedTheme === 'dark') ? savedTheme : 'dark';
+    setTheme(initialTheme);
+    applyTheme(initialTheme);
   }, []);
+
+  const applyTheme = (t: Theme) => {
+    const root = document.documentElement;
+    if (t === 'dark') {
+      root.classList.add('dark');
+      root.classList.remove('light');
+    } else {
+      root.classList.add('light');
+      root.classList.remove('dark');
+    }
+  };
 
   const toggleTheme = () => {
     const nextTheme = theme === 'dark' ? 'light' : 'dark';
     setTheme(nextTheme);
     localStorage.setItem('theme', nextTheme);
-    document.documentElement.classList.toggle('dark', nextTheme === 'dark');
-    document.documentElement.classList.toggle('light', nextTheme === 'light');
+    applyTheme(nextTheme);
   };
 
   return (

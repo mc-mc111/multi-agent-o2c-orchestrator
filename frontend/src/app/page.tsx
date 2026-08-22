@@ -75,8 +75,12 @@ function MainApp() {
     try {
       const formData = new FormData();
       formData.append("input_type", inputType);
-      if (textPayload) formData.append("raw_text", textPayload);
-      if (file) formData.append("file", file);
+      if (textPayload && textPayload.trim()) {
+        formData.append("raw_text", textPayload);
+      }
+      if (file) {
+        formData.append("file", file);
+      }
 
       const res = await fetch(`${getApiBaseUrl()}/api/v1/ingest`, {
         method: "POST",
