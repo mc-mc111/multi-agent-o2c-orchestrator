@@ -25,6 +25,8 @@ export const UserManager: React.FC = () => {
   const [custName, setCustName] = useState('');
   const [custEmail, setCustEmail] = useState('');
   const [creditLimit, setCreditLimit] = useState('50000');
+  const [shippingAddress, setShippingAddress] = useState('');
+  const [billingAddress, setBillingAddress] = useState('');
   const [userMsg, setUserMsg] = useState<string | null>(null);
 
   const fetchCustomers = async () => {
@@ -59,7 +61,9 @@ export const UserManager: React.FC = () => {
           id: custCustomId.trim().toUpperCase() || undefined,
           name: custName.trim(),
           email: custEmail.trim(),
-          credit_limit: parseFloat(creditLimit) || 50000.0
+          credit_limit: parseFloat(creditLimit) || 50000.0,
+          shipping_address: shippingAddress.trim() || undefined,
+          billing_address: billingAddress.trim() || undefined
         })
       });
       const data = await res.json();
@@ -67,6 +71,8 @@ export const UserManager: React.FC = () => {
         setUserMsg(`Customer ${data.customer_id || 'account'} created successfully!`);
         setCustName('');
         setCustEmail('');
+        setShippingAddress('');
+        setBillingAddress('');
         fetchCustomers();
       } else {
         setUserMsg(`Failed: ${data.detail || 'Could not add user'}`);
@@ -108,46 +114,68 @@ export const UserManager: React.FC = () => {
             <span>Add New Customer Account</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="p-4">
-          <form onSubmit={handleAddCustomer} className="grid grid-cols-1 sm:grid-cols-5 gap-3">
-            <div>
-              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Customer ID</label>
-              <Input
-                placeholder="CUST-1005"
-                value={custCustomId}
-                onChange={(e) => setCustCustomId(e.target.value)}
-                className="font-mono uppercase"
-              />
+        <CardContent className="p-4 space-y-3">
+          <form onSubmit={handleAddCustomer} className="space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Customer ID</label>
+                <Input
+                  placeholder="CUST-1005"
+                  value={custCustomId}
+                  onChange={(e) => setCustCustomId(e.target.value)}
+                  className="font-mono uppercase"
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Customer Name</label>
+                <Input
+                  placeholder="Pinnacle Tech Solutions"
+                  value={custName}
+                  onChange={(e) => setCustName(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Email Address</label>
+                <Input
+                  type="email"
+                  placeholder="orders@pinnacle.com"
+                  value={custEmail}
+                  onChange={(e) => setCustEmail(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Credit Limit ($)</label>
+                <Input
+                  type="number"
+                  placeholder="50000"
+                  value={creditLimit}
+                  onChange={(e) => setCreditLimit(e.target.value)}
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Customer Name</label>
-              <Input
-                placeholder="Apex Technologies"
-                value={custName}
-                onChange={(e) => setCustName(e.target.value)}
-              />
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Shipping Address</label>
+                <Input
+                  placeholder="450 Tech Parkway, Suite 100, Austin TX 78701"
+                  value={shippingAddress}
+                  onChange={(e) => setShippingAddress(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Billing Address</label>
+                <Input
+                  placeholder="450 Tech Parkway, Suite 100, Austin TX 78701"
+                  value={billingAddress}
+                  onChange={(e) => setBillingAddress(e.target.value)}
+                />
+              </div>
             </div>
-            <div>
-              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Email Address</label>
-              <Input
-                type="email"
-                placeholder="purchasing@apex.com"
-                value={custEmail}
-                onChange={(e) => setCustEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Credit Limit ($)</label>
-              <Input
-                type="number"
-                placeholder="50000"
-                value={creditLimit}
-                onChange={(e) => setCreditLimit(e.target.value)}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button type="submit" disabled={adding} className="w-full font-bold">
-                {adding ? "Adding..." : "Add Customer"}
+
+            <div className="flex justify-end pt-1">
+              <Button type="submit" disabled={adding} className="px-6 font-bold">
+                {adding ? "Creating Customer..." : "Add Customer"}
               </Button>
             </div>
           </form>
