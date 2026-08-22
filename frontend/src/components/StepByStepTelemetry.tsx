@@ -189,15 +189,15 @@ export const StepByStepTelemetry: React.FC<StepByStepTelemetryProps> = ({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Customer Profile</span>
-                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{customer_name || 'Acme Solutions'}</p>
-                  <p className="text-xs font-mono text-sky-600 dark:text-sky-400">{customer_id || 'CUST-1001'}</p>
-                  <p className="text-xs text-slate-500 mt-1">{customer_email || 'purchasing@acme.com'}</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{customer_name || 'Unspecified Customer'}</p>
+                  <p className="text-xs font-mono text-sky-600 dark:text-sky-400">{customer_id || 'N/A'}</p>
+                  <p className="text-xs text-slate-500 mt-1">{customer_email || 'No email provided'}</p>
                 </div>
 
                 <div className="p-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950">
                   <span className="text-[11px] font-bold text-slate-500 uppercase">Shipping Destination</span>
                   <p className="text-xs font-medium text-slate-800 dark:text-slate-200 mt-2">
-                    {shipping_address || '100 Innovation Way, Suite 400, Austin TX 78701'}
+                    {shipping_address || 'No shipping address provided'}
                   </p>
                 </div>
               </div>

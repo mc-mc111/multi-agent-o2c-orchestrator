@@ -10,7 +10,6 @@ from app.config import settings
 
 logger = logging.getLogger("ocr_service")
 
-# Configure Gemini AI SDK dynamically from environment variables
 if settings.GEMINI_API_KEY:
     genai.configure(api_key=settings.GEMINI_API_KEY)
 
@@ -51,26 +50,18 @@ async def parse_with_gemini(raw_content: str) -> Optional[OrderRequest]:
         prompt = f"""
 Extract purchase order details into a strictly valid JSON object.
 Rules:
-- customer_id: Customer ID string (default 'CUST-1001' if missing)
-- shipping_address: Full address string or null
-- billing_address: Full address string or null
+- customer_id: Customer ID string (e.g. CUST-1001) or "UNKNOWN_CUSTOMER" if missing
+- shipping_address: Full shipping address string or null
+- billing_address: Full billing address string or null
 - items: list of objects with 'sku' (string), 'requested_qty' (integer > 0), 'unit_price' (float or null)
 
 Raw Document Text:
 {raw_content}
 
-Return ONLY raw valid JSON matching this schema:
-{{
-  "customer_id": "CUST-1001",
-  "shipping_address": "100 Innovation Way, Austin TX",
-  "items": [
-    {{"sku": "SKU-SERVER-01", "requested_qty": 2, "unit_price": 3500.0}}
-  ]
-}}
+Return ONLY raw valid JSON.
 """
         response = await model.generate_content_async(prompt)
         text_resp = response.text.strip()
-        # Clean JSON markdown blocks ```json ... ```
         if text_resp.startswith("```"):
             text_resp = re.sub(r"^```[a-z]*", "", text_resp).strip()
             text_resp = re.sub(r"```$", "", text_resp).strip()
@@ -82,9 +73,9 @@ Return ONLY raw valid JSON matching this schema:
         return None
 
 def parse_text_input(raw_text: str) -> OrderRequest:
-    """Regex fallback parser for raw text when LLM is offline."""
+    """Regex parser for raw text extracting exact SKUs and quantities."""
     cust_match = re.search(r"CUST-[A-Z0-9]+", raw_text, re.IGNORECASE)
-    customer_id = cust_match.group(0).upper() if cust_match else "CUST-1001"
+    customer_id = cust_match.group(0).upper() if cust_match else "UNKNOWN_CUSTOMER"
     
     sku_pattern = r"(SKU-[A-Z0-9-]+)[^\d]+(\d+)"
     items = []
@@ -95,9 +86,9 @@ def parse_text_input(raw_text: str) -> OrderRequest:
             sku=sku.upper(),
             requested_qty=int(qty)
         ))
-    
+        
     if not items:
-        items.append(OrderItemRequest(sku="SKU-SERVER-01", requested_qty=2))
+        raise ValueError("Could not find any SKU codes (e.g. SKU-SERVER-01) or item quantities in input.")
         
     return OrderRequest(
         customer_id=customer_id,
@@ -110,12 +101,9 @@ async def process_ingestion(
     file_bytes: Optional[bytes] = None,
     filename: Optional[str] = None
 ) -> OrderRequest:
-    """Stage 0 Ingestion Node: Extracts and parses multi-modal PDF/Text/JSON into OrderRequest."""
+    """Stage 0 Ingestion Node: Dynamic multi-modal PDF/Text/JSON ingestion."""
     if input_type == "json" and raw_text and raw_text.strip() and raw_text != "undefined":
-        try:
-            return parse_json_input(raw_text)
-        except Exception:
-            pass
+        return parse_json_input(raw_text)
 
     content_to_parse = ""
     if input_type == "file" and file_bytes:
@@ -131,15 +119,9 @@ async def process_ingestion(
         content_to_parse = raw_text
 
     if content_to_parse:
-        # Try Gemini LLM first
         llm_parsed = await parse_with_gemini(content_to_parse)
         if llm_parsed:
             return llm_parsed
-        # Fallback to regex
         return parse_text_input(content_to_parse)
 
-    # Fallback default request
-    return OrderRequest(
-        customer_id="CUST-1001",
-        items=[OrderItemRequest(sku="SKU-SERVER-01", requested_qty=2)]
-    )
+    raise ValueError("Empty or unreadable order input provided. Please provide text, JSON, or a PDF file.")
