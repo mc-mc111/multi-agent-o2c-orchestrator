@@ -6,7 +6,7 @@ import { AlertTriangle, CheckCircle, Trash2, RefreshCw, X } from 'lucide-react';
 interface InventoryExceptionModalProps {
   isOpen: boolean;
   onClose: () => void;
-  orderId: str;
+  orderId: string;
   exceptions: any[];
   onResolutionComplete: () => void;
 }
