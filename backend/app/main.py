@@ -32,11 +32,22 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# Configure CORS
+# Configure CORS for Vercel production & local environments
+cors_origins = [
+    "https://multi-agent-o2c-orchestrator.vercel.app",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+if settings.ALLOWED_ORIGINS:
+    for origin in settings.ALLOWED_ORIGINS.split(","):
+        o = origin.strip()
+        if o and o not in cors_origins:
+            cors_origins.append(o)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins or ["*"],
-    allow_credentials=True,
+    allow_origins=["*"], # Allow all origins including Vercel and preview deployments
+    allow_credentials=False, # Must be False when allow_origins=["*"] in browser standard
     allow_methods=["*"],
     allow_headers=["*"],
 )
