@@ -292,20 +292,32 @@ async def add_inventory_sku(payload: Dict[str, Any], session: AsyncSession = Dep
 
 @router.post("/customers/add")
 async def add_customer_account(payload: Dict[str, Any], session: AsyncSession = Depends(get_async_session)):
+    raw_id = payload.get("id", "").strip().upper()
     name = payload.get("name", "").strip()
     email = payload.get("email", "").strip()
     limit = float(payload.get("credit_limit", 50000.0))
+    shipping = payload.get("shipping_address", "").strip() or "100 Corporate Blvd, Austin TX"
+    billing = payload.get("billing_address", "").strip() or "100 Corporate Blvd, Austin TX"
     
     if not name or not email:
         raise HTTPException(status_code=400, detail="Name and email required")
         
-    cust_id = f"CUST-{uuid.uuid4().hex[:4].upper()}"
+    cust_id = raw_id if raw_id else f"CUST-{uuid.uuid4().hex[:4].upper()}"
+    
+    stmt = select(Customer).where((Customer.id == cust_id) | (Customer.email == email))
+    existing = (await session.execute(stmt)).scalar_one_or_none()
+    if existing:
+        raise HTTPException(status_code=400, detail=f"Customer ID '{cust_id}' or Email '{email}' already exists.")
+        
     new_cust = Customer(
         id=cust_id,
         name=name,
         email=email,
         credit_limit=limit,
-        current_exposure=0.0
+        current_exposure=0.0,
+        shipping_address=shipping,
+        billing_address=billing,
+        is_active=True
     )
     session.add(new_cust)
     await session.commit()
