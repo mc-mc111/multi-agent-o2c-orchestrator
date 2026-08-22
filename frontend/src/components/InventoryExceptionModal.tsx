@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle, Trash2, RefreshCw, X } from 'lucide-react';
+import { getApiBaseUrl } from '@/lib/api';
 
 interface InventoryExceptionModalProps {
   isOpen: boolean;
@@ -35,7 +36,7 @@ export const InventoryExceptionModal: React.FC<InventoryExceptionModalProps> = (
       formData.append("resolution_action", "USER_OVERRIDE");
       formData.append("overrides_json", JSON.stringify(selectedActions));
 
-      const res = await fetch("http://localhost:8000/api/v1/orchestrate/resume", {
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/orchestrate/resume`, {
         method: "POST",
         body: formData
       });

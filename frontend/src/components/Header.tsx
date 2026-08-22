@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from 'react';
-import { Cpu, Database, Cloud, Sparkles, RefreshCw, CheckCircle2, ShieldCheck } from 'lucide-react';
+import { Cpu, Database, Cloud, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react';
+import { getApiBaseUrl } from '@/lib/api';
 
 interface HeaderProps {
   onSeedReset: () => void;
@@ -14,7 +15,7 @@ export const Header: React.FC<HeaderProps> = ({ onSeedReset }) => {
   const handleSeed = async () => {
     setSeeding(true);
     try {
-      const res = await fetch("http://localhost:8000/api/v1/seed", { method: "POST" });
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/seed`, { method: "POST" });
       if (res.ok) {
         setSeedSuccess(true);
         onSeedReset();

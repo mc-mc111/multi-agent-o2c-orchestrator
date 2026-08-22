@@ -8,6 +8,7 @@ import { InventoryExceptionModal } from '@/components/InventoryExceptionModal';
 import { ValidationErrorModal } from '@/components/ValidationErrorModal';
 import { AuditTrailModal } from '@/components/AuditTrailModal';
 import { InvoiceViewerModal } from '@/components/InvoiceViewerModal';
+import { getApiBaseUrl } from '@/lib/api';
 
 export default function Home() {
   const [isExecuting, setIsExecuting] = useState(false);
@@ -44,7 +45,7 @@ export default function Home() {
       if (textPayload) formData.append("raw_text", textPayload);
       if (file) formData.append("file", file);
 
-      const res = await fetch("http://localhost:8000/api/v1/ingest", {
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/ingest`, {
         method: "POST",
         body: formData
       });
@@ -58,7 +59,7 @@ export default function Home() {
       setCurrentState(data.initial_state);
 
       // Connect to SSE Stream: /api/v1/orchestrate/stream?order_id=...
-      const es = new EventSource(`http://localhost:8000/api/v1/orchestrate/stream?order_id=${data.order_id}`);
+      const es = new EventSource(`${getApiBaseUrl()}/api/v1/orchestrate/stream?order_id=${data.order_id}`);
       setActiveEventSource(es);
 
       es.addEventListener("state_update", (event: MessageEvent) => {
@@ -112,7 +113,7 @@ export default function Home() {
   const handleResolutionComplete = () => {
     // Resume SSE stream updates
     if (currentState?.order_id) {
-      const es = new EventSource(`http://localhost:8000/api/v1/orchestrate/stream?order_id=${currentState.order_id}`);
+      const es = new EventSource(`${getApiBaseUrl()}/api/v1/orchestrate/stream?order_id=${currentState.order_id}`);
       setActiveEventSource(es);
       es.addEventListener("state_update", (event: MessageEvent) => {
         const update = JSON.parse(event.data);
