@@ -5,13 +5,17 @@ import logging
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 import pypdf
-import google.generativeai as genai
 from app.config import settings
 
 logger = logging.getLogger("ocr_service")
 
-if settings.GEMINI_API_KEY:
-    genai.configure(api_key=settings.GEMINI_API_KEY)
+try:
+    import google.generativeai as genai
+    if settings.GEMINI_API_KEY:
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+except Exception as e:
+    logger.warning(f"google.generativeai module import warning: {e}")
+    genai = None
 
 class OrderItemRequest(BaseModel):
     sku: str
@@ -43,7 +47,7 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
 
 async def parse_with_gemini(raw_content: str) -> Optional[OrderRequest]:
     """Uses configured Gemini AI model (MODEL_NAME) to extract structured OrderRequest JSON from multi-modal text/PDF."""
-    if not settings.GEMINI_API_KEY:
+    if not genai or not settings.GEMINI_API_KEY:
         return None
     try:
         model = genai.GenerativeModel(settings.MODEL_NAME)
