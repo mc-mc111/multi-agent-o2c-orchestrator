@@ -37,6 +37,7 @@ async def test_full_graph_execution():
         "input_items": [{"sku": "SKU-SERVER-01", "requested_qty": 1, "unit_price": 3500.0}],
         "validation_status": "PENDING",
         "validation_errors": [],
+        "validation_warnings": [],
         "customer_name": None,
         "customer_email": None,
         "inventory_status": "PENDING",

@@ -10,6 +10,7 @@ class O2CState(TypedDict):
     # Validation Node Outputs
     validation_status: str # "VALIDATED" or "VALIDATION_FAILED"
     validation_errors: List[str]
+    validation_warnings: List[str]  # Non-blocking LLM warnings
     customer_name: Optional[str]
     customer_email: Optional[str]
     
