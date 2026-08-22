@@ -201,7 +201,23 @@ export const UserManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
-                {customers.map((c) => {
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-500 font-sans">
+                      <div className="flex items-center justify-center space-x-2">
+                        <RefreshCw className="h-4 w-4 animate-spin text-sky-500" />
+                        <span className="text-xs font-medium">Loading customer accounts from Neon DB...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : customers.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-slate-400 font-sans">
+                      No customer accounts found.
+                    </td>
+                  </tr>
+                ) : (
+                  customers.map((c) => {
                   const pct = ((c.current_exposure || 0) / (c.credit_limit || 1)) * 100;
                   return (
                     <tr key={c.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
@@ -219,7 +235,7 @@ export const UserManager: React.FC = () => {
                       </td>
                     </tr>
                   );
-                })}
+                }))}
               </tbody>
             </table>
           </div>

@@ -73,7 +73,23 @@ export const AuditLogsPage: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
-                {orders.map((o) => (
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-500 font-sans">
+                      <div className="flex items-center justify-center space-x-2">
+                        <RefreshCw className="h-4 w-4 animate-spin text-sky-500" />
+                        <span className="text-xs font-medium">Loading historical audit logs...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : orders.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} className="p-6 text-center text-slate-400 font-sans">
+                      No historical runs found.
+                    </td>
+                  </tr>
+                ) : (
+                  orders.map((o) => (
                   <tr key={o.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
                     <td className="p-3 font-bold text-sky-600 dark:text-sky-400">{o.id}</td>
                     <td className="p-3 text-slate-700 dark:text-slate-300 font-sans">{o.customer_id}</td>
@@ -90,7 +106,7 @@ export const AuditLogsPage: React.FC = () => {
                     <td className="p-3 text-purple-600 dark:text-purple-400 font-bold">{o.risk_score || 0}/100</td>
                     <td className="p-3 text-slate-500 font-sans text-[11px]">{o.created_at?.split('T')[0] || '2026-08-22'}</td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>

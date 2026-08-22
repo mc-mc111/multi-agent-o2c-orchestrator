@@ -190,7 +190,23 @@ export const InventoryManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
-                {skus.map((item) => (
+                {loading ? (
+                  <tr>
+                    <td colSpan={7} className="p-8 text-center text-slate-500 font-sans">
+                      <div className="flex items-center justify-center space-x-2">
+                        <RefreshCw className="h-4 w-4 animate-spin text-sky-500" />
+                        <span className="text-xs font-medium">Loading inventory data from Neon DB...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : skus.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} className="p-6 text-center text-slate-400 font-sans">
+                      No inventory SKUs found. Click &apos;Reset & Seed DB&apos; or add a new SKU.
+                    </td>
+                  </tr>
+                ) : (
+                  skus.map((item) => (
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/50">
                     <td className="p-3 font-bold text-sky-600 dark:text-sky-400">{item.sku}</td>
                     <td className="p-3 text-slate-800 dark:text-slate-200 font-sans font-medium">{item.name}</td>
@@ -231,7 +247,7 @@ export const InventoryManager: React.FC = () => {
                       </Button>
                     </td>
                   </tr>
-                ))}
+                )))}
               </tbody>
             </table>
           </div>

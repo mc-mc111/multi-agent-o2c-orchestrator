@@ -168,7 +168,16 @@ export const TransactionManager: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
-                {orders.length === 0 ? (
+                {loading ? (
+                  <tr>
+                    <td colSpan={6} className="p-8 text-center text-slate-500 font-sans">
+                      <div className="flex items-center justify-center space-x-2">
+                        <RefreshCw className="h-4 w-4 animate-spin text-sky-500" />
+                        <span className="text-xs font-medium">Fetching transaction details...</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : orders.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-6 text-center text-slate-400 font-sans">
                       No active transactions found. Ingest an order to see execution status.
@@ -183,10 +192,7 @@ export const TransactionManager: React.FC = () => {
                         selectedOrderId === o.id ? 'bg-sky-100/40 dark:bg-sky-950/30 font-semibold' : ''
                       }`}
                     >
-                      <td className="p-3 font-bold text-sky-600 dark:text-sky-400 flex items-center gap-1.5">
-                        <Eye className="h-3.5 w-3.5 text-slate-400" />
-                        <span>{o.id}</span>
-                      </td>
+                      <td className="p-3 font-bold text-sky-600 dark:text-sky-400">{o.id}</td>
                       <td className="p-3 text-slate-800 dark:text-slate-200 font-sans font-medium">{o.customer_id}</td>
                       <td className="p-3 text-slate-700 dark:text-slate-300">${o.total_amount?.toFixed(2)}</td>
                       <td className="p-3 font-sans">
@@ -237,7 +243,7 @@ export const TransactionManager: React.FC = () => {
 
       {/* Order Detail Modal / Inspector Panel */}
       {selectedOrderId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+        <div className="fixed inset-0 z-[100] w-screen h-screen top-0 left-0 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-md animate-in fade-in">
           <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6 space-y-6">
             <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-4">
               <div>
