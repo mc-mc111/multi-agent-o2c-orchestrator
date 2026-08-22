@@ -9,7 +9,7 @@ from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_async_session
-from app.db.models import Order, Customer, InventorySKU, AuditLog, Invoice
+from app.db.models import Order, Customer, InventorySKU, OrderItem, AuditLog, Invoice
 from app.db.seed import seed_database
 from app.services.ocr_service import process_ingestion, OrderRequest
 from app.services.cloudinary_service import upload_file_to_cloudinary
