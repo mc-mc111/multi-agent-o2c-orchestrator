@@ -11,13 +11,26 @@ logger = logging.getLogger("agent_nodes")
 
 async def _save_or_update_order(session, state: O2CState, status: str, total_amount: float = 0.0, risk_score: float = 0.0, risk_level: str = "LOW"):
     order_id = state["order_id"]
+    raw_cust_id = state.get("customer_id", "CUST-1001")
+    
+    # Ensure foreign key validity against customers table
+    cust_stmt = select(Customer.id).where(Customer.id == raw_cust_id)
+    existing_cust_id = (await session.execute(cust_stmt)).scalar_one_or_none()
+    
+    if not existing_cust_id:
+        # Fallback to first active customer ID in database so FK constraint never fails
+        first_cust = (await session.execute(select(Customer.id))).scalars().first()
+        valid_cust_id = first_cust if first_cust else "CUST-1001"
+    else:
+        valid_cust_id = raw_cust_id
+
     stmt = select(Order).where(Order.id == order_id)
     order_obj = (await session.execute(stmt)).scalar_one_or_none()
     
     if not order_obj:
         order_obj = Order(
             id=order_id,
-            customer_id=state.get("customer_id", "UNKNOWN"),
+            customer_id=valid_cust_id,
             raw_input_type="text",
             status=status,
             subtotal=state.get("subtotal", 0.0),

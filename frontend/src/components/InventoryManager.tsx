@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Layers, Plus, RefreshCw, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Layers, Plus, RefreshCw, CheckCircle2, AlertCircle, PlusCircle } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,7 @@ export const InventoryManager: React.FC = () => {
   const [skus, setSkus] = useState<SKUItem[]>([]);
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [adjustingSku, setAdjustingSku] = useState<string | null>(null);
 
   // New SKU form state
   const [newSkuCode, setNewSkuCode] = useState('');
@@ -73,6 +74,29 @@ export const InventoryManager: React.FC = () => {
       console.error("Add SKU failed", e);
     } finally {
       setAdding(false);
+    }
+  };
+
+  const handleQuickAddStock = async (sku: string, skuName: string, addQty: number) => {
+    setAdjustingSku(sku);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/inventory/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sku: sku,
+          name: skuName,
+          unit_price: 100.0,
+          available_quantity: addQty
+        })
+      });
+      if (res.ok) {
+        fetchInventory();
+      }
+    } catch (e) {
+      console.error("Quick add stock failed", e);
+    } finally {
+      setAdjustingSku(null);
     }
   };
 
@@ -162,6 +186,7 @@ export const InventoryManager: React.FC = () => {
                   <th className="p-3">Available Qty</th>
                   <th className="p-3">Reserved Qty</th>
                   <th className="p-3">Stock Status</th>
+                  <th className="p-3 text-right">Quick Restock Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800 font-mono">
@@ -171,7 +196,7 @@ export const InventoryManager: React.FC = () => {
                     <td className="p-3 text-slate-800 dark:text-slate-200 font-sans font-medium">{item.name}</td>
                     <td className="p-3 text-slate-700 dark:text-slate-300">${item.unit_price?.toFixed(2)}</td>
                     <td className="p-3 font-bold">{item.available_quantity}</td>
-                    <td className="p-3 text-slate-500">{item.reserved_quantity}</td>
+                    <td className="p-3 text-amber-500 font-bold">{item.reserved_quantity}</td>
                     <td className="p-3">
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         item.available_quantity > 10
@@ -182,6 +207,28 @@ export const InventoryManager: React.FC = () => {
                       }`}>
                         {item.available_quantity > 0 ? "IN STOCK" : "OUT OF STOCK"}
                       </span>
+                    </td>
+                    <td className="p-3 text-right space-x-1 font-sans">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={adjustingSku === item.sku}
+                        onClick={() => handleQuickAddStock(item.sku, item.name, 10)}
+                        className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border-emerald-500/30 hover:bg-emerald-50 dark:hover:bg-emerald-950 h-7 px-2"
+                      >
+                        <PlusCircle className="h-3 w-3 mr-1" />
+                        +10 Qty
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={adjustingSku === item.sku}
+                        onClick={() => handleQuickAddStock(item.sku, item.name, 50)}
+                        className="text-[10px] font-bold text-sky-600 dark:text-sky-400 border-sky-500/30 hover:bg-sky-50 dark:hover:bg-sky-950 h-7 px-2"
+                      >
+                        <PlusCircle className="h-3 w-3 mr-1" />
+                        +50 Qty
+                      </Button>
                     </td>
                   </tr>
                 ))}

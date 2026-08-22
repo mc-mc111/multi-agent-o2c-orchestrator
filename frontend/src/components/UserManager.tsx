@@ -21,10 +21,11 @@ export const UserManager: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
 
-  // Form state
+  const [custCustomId, setCustCustomId] = useState('CUST-1005');
   const [custName, setCustName] = useState('');
   const [custEmail, setCustEmail] = useState('');
   const [creditLimit, setCreditLimit] = useState('50000');
+  const [userMsg, setUserMsg] = useState<string | null>(null);
 
   const fetchCustomers = async () => {
     setLoading(true);
@@ -49,23 +50,29 @@ export const UserManager: React.FC = () => {
     e.preventDefault();
     if (!custName || !custEmail) return;
     setAdding(true);
+    setUserMsg(null);
     try {
       const res = await fetch(`${getApiBaseUrl()}/api/v1/customers/add`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          id: custCustomId.trim().toUpperCase() || undefined,
           name: custName.trim(),
           email: custEmail.trim(),
           credit_limit: parseFloat(creditLimit) || 50000.0
         })
       });
+      const data = await res.json();
       if (res.ok) {
+        setUserMsg(`Customer ${data.customer_id || 'account'} created successfully!`);
         setCustName('');
         setCustEmail('');
         fetchCustomers();
+      } else {
+        setUserMsg(`Failed: ${data.detail || 'Could not add user'}`);
       }
-    } catch (e) {
-      console.error("Add customer failed", e);
+    } catch (e: any) {
+      setUserMsg(`Error: ${e.message}`);
     } finally {
       setAdding(false);
     }
@@ -87,6 +94,12 @@ export const UserManager: React.FC = () => {
         </Button>
       </div>
 
+      {userMsg && (
+        <div className="p-3 rounded-xl border border-sky-500/30 bg-sky-50 dark:bg-sky-950/40 text-xs font-bold text-sky-700 dark:text-sky-300">
+          {userMsg}
+        </div>
+      )}
+
       {/* Add Customer Card */}
       <Card>
         <CardHeader className="py-3 px-4">
@@ -96,7 +109,16 @@ export const UserManager: React.FC = () => {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
-          <form onSubmit={handleAddCustomer} className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+          <form onSubmit={handleAddCustomer} className="grid grid-cols-1 sm:grid-cols-5 gap-3">
+            <div>
+              <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Customer ID</label>
+              <Input
+                placeholder="CUST-1005"
+                value={custCustomId}
+                onChange={(e) => setCustCustomId(e.target.value)}
+                className="font-mono uppercase"
+              />
+            </div>
             <div>
               <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400">Customer Name</label>
               <Input

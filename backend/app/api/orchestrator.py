@@ -310,3 +310,59 @@ async def add_customer_account(payload: Dict[str, Any], session: AsyncSession = 
     session.add(new_cust)
     await session.commit()
     return {"status": "success", "customer_id": cust_id}
+
+@router.get("/orders")
+async def list_all_orders(session: AsyncSession = Depends(get_async_session)):
+    stmt = select(Order).order_by(Order.created_at.desc())
+    orders = (await session.execute(stmt)).scalars().all()
+    return [
+        {
+            "id": o.id,
+            "customer_id": o.customer_id,
+            "status": o.status,
+            "total_amount": o.total_amount,
+            "risk_score": o.risk_score,
+            "created_at": o.created_at.isoformat() if o.created_at else None
+        }
+        for o in orders
+    ]
+
+@router.post("/orders/{order_id}/cancel")
+async def cancel_order_and_unreserve_stock(order_id: str, session: AsyncSession = Depends(get_async_session)):
+    stmt = select(Order).where(Order.id == order_id)
+    order_obj = (await session.execute(stmt)).scalar_one_or_none()
+    if not order_obj:
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found.")
+        
+    item_stmt = select(OrderItem).where(OrderItem.order_id == order_id)
+    items = (await session.execute(item_stmt)).scalars().all()
+    
+    unreserved_details = []
+    for item in items:
+        if item.allocated_qty > 0:
+            sku_stmt = select(InventorySKU).where(InventorySKU.sku == item.sku)
+            sku_obj = (await session.execute(sku_stmt)).scalar_one_or_none()
+            if sku_obj:
+                sku_obj.available_quantity += item.allocated_qty
+                sku_obj.reserved_quantity = max(0, sku_obj.reserved_quantity - item.allocated_qty)
+                session.add(sku_obj)
+                unreserved_details.append(f"Restored {item.allocated_qty} units of {item.sku}")
+                
+    order_obj.status = "CANCELLED"
+    order_obj.updated_at = datetime.utcnow()
+    session.add(order_obj)
+    
+    audit = AuditLog(
+        order_id=order_id,
+        agent_name="TransactionManager",
+        status="CANCELLED",
+        message=f"Order cancelled by admin. Stock unreserved: {', '.join(unreserved_details) if unreserved_details else 'None'}"
+    )
+    session.add(audit)
+    await session.commit()
+    
+    return {
+        "status": "success",
+        "message": f"Order {order_id} cancelled and reserved stock restored.",
+        "unreserved": unreserved_details
+    }

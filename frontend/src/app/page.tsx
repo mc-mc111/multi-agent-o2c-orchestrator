@@ -11,6 +11,7 @@ import { DocumentInspector } from '@/components/DocumentInspector';
 import { InventoryManager } from '@/components/InventoryManager';
 import { UserManager } from '@/components/UserManager';
 import { AuditLogsPage } from '@/components/AuditLogsPage';
+import { TransactionManager } from '@/components/TransactionManager';
 import { InventoryExceptionModal } from '@/components/InventoryExceptionModal';
 import { ValidationErrorModal } from '@/components/ValidationErrorModal';
 import { AuditTrailModal } from '@/components/AuditTrailModal';
@@ -223,6 +224,7 @@ function MainApp() {
           </div>
         )}
 
+        {activeTab === 'transactions' && <TransactionManager />}
         {activeTab === 'inventory' && <InventoryManager />}
         {activeTab === 'users' && <UserManager />}
         {activeTab === 'audit' && <AuditLogsPage />}

@@ -2,12 +2,12 @@
 
 import React from 'react';
 import { 
-  Cpu, Layers, Users, History, Sun, Moon, Lock, Database, RefreshCw, ChevronLeft, ChevronRight
+  Cpu, Layers, Users, History, Sun, Moon, Lock, Database, RefreshCw, ChevronLeft, ChevronRight, Activity
 } from 'lucide-react';
 import { useTheme } from '@/context/ThemeContext';
 import { Button } from '@/components/ui/button';
 
-export type ActiveTab = 'orchestrator' | 'inventory' | 'users' | 'audit';
+export type ActiveTab = 'orchestrator' | 'inventory' | 'users' | 'audit' | 'transactions';
 
 interface SidebarProps {
   activeTab: ActiveTab;
@@ -28,6 +28,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   const navItems = [
     { id: 'orchestrator' as ActiveTab, label: 'O2C Orchestrator', icon: Cpu },
+    { id: 'transactions' as ActiveTab, label: 'Transactions Control', icon: Activity },
     { id: 'inventory' as ActiveTab, label: 'Inventory (Neon DB)', icon: Layers },
     { id: 'users' as ActiveTab, label: 'User Management', icon: Users },
     { id: 'audit' as ActiveTab, label: 'Audit Log Stream', icon: History },
