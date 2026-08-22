@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Layers, Plus, RefreshCw, CheckCircle2, AlertCircle, PlusCircle } from 'lucide-react';
+import { Layers, Plus, RefreshCw, CheckCircle2, AlertCircle, PlusCircle, Wrench } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,6 +24,8 @@ export const InventoryManager: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [adding, setAdding] = useState(false);
   const [adjustingSku, setAdjustingSku] = useState<string | null>(null);
+  const [reconciling, setReconciling] = useState(false);
+  const [reconcileMsg, setReconcileMsg] = useState<string | null>(null);
 
   // New SKU form state
   const [newSkuCode, setNewSkuCode] = useState('');
@@ -100,6 +102,23 @@ export const InventoryManager: React.FC = () => {
     }
   };
 
+  const handleReconcile = async () => {
+    setReconciling(true);
+    setReconcileMsg(null);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/admin/reconcile-inventory`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setReconcileMsg(data.message || 'Done');
+        fetchInventory();
+      }
+    } catch (e) {
+      setReconcileMsg('Reconcile failed');
+    } finally {
+      setReconciling(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -110,11 +129,23 @@ export const InventoryManager: React.FC = () => {
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400">View, adjust, and add new SKUs directly into Neon PostgreSQL.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={fetchInventory} disabled={loading}>
-          <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
-          <span>Refresh</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={handleReconcile} disabled={reconciling} title="Fix orphaned reserved stock from old completed/cancelled orders">
+            <Wrench className={`h-3.5 w-3.5 mr-1 ${reconciling ? 'animate-spin' : ''}`} />
+            <span>Fix Reserved Stock</span>
+          </Button>
+          <Button variant="outline" size="sm" onClick={fetchInventory} disabled={loading}>
+            <RefreshCw className={`h-3.5 w-3.5 mr-1 ${loading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
+          </Button>
+        </div>
       </div>
+      {reconcileMsg && (
+        <div className="px-3 py-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800 text-xs font-semibold text-emerald-700 dark:text-emerald-400 flex items-center justify-between">
+          <span>✅ {reconcileMsg}</span>
+          <button onClick={() => setReconcileMsg(null)} className="text-emerald-500">✕</button>
+        </div>
+      )}
 
       {/* Add New SKU Card */}
       <Card>

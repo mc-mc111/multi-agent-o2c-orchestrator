@@ -360,14 +360,14 @@ export const TransactionManager: React.FC = () => {
                           </tr>
                         ) : (
                           orderDetail.items.map((item, idx) => (
-                            <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                              <td className="p-2.5 font-bold text-sky-600 dark:text-sky-400">{item.sku}</td>
-                              <td className="p-2.5 text-center">{item.requested_qty}</td>
-                              <td className="p-2.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">{item.allocated_qty}</td>
-                              <td className="p-2.5 text-center text-amber-600 dark:text-amber-400">{item.backordered_qty}</td>
-                              <td className="p-2.5 text-right">${item.unit_price?.toFixed(2)}</td>
-                              <td className="p-2.5 text-right font-bold">${item.line_total?.toFixed(2)}</td>
-                            </tr>
+                              <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                               <td className="p-2.5 font-bold text-sky-600 dark:text-sky-400">{item.sku}</td>
+                               <td className="p-2.5 text-center text-slate-700 dark:text-slate-300">{item.requested_qty}</td>
+                               <td className="p-2.5 text-center text-emerald-600 dark:text-emerald-400 font-bold">{item.allocated_qty}</td>
+                               <td className="p-2.5 text-center text-amber-600 dark:text-amber-400">{item.backordered_qty}</td>
+                               <td className="p-2.5 text-right text-slate-700 dark:text-slate-300 font-mono">${item.unit_price?.toFixed(2)}</td>
+                               <td className="p-2.5 text-right font-bold text-slate-900 dark:text-white font-mono">${item.line_total?.toFixed(2)}</td>
+                             </tr>
                           ))
                         )}
                       </tbody>

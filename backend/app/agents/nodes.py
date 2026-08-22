@@ -43,51 +43,62 @@ def _get_ai_client():
         return None
 
 
-async def _call_llm(system_prompt: str, user_message: str, max_retries: int = 3) -> Optional[dict]:
+async def _call_llm(system_prompt: str, user_message: str, max_retries: int = 2) -> Optional[dict]:
     """
-    Fire a Gemini call with exponential backoff retry for 503/429 rate-limit errors.
-    Returns a parsed dict from the JSON block in the response, or None on failure.
+    Fire a Gemini call via thread executor (SDK is synchronous).
+    Applies asyncio timeout (12s) + exponential backoff retry for 503/429.
+    Falls back gracefully (returns None) on any failure so rule-based logic takes over.
     """
-    import asyncio
     client = _get_ai_client()
     if not client:
-        logger.warning("No Gemini client available — falling back to rule-based logic.")
+        logger.warning("No Gemini client — rule-based fallback.")
         return None
+
+    loop = asyncio.get_event_loop()
+
+    def _sync_call():
+        from google.genai import types
+        return client.models.generate_content(
+            model=settings.MODEL_NAME,
+            contents=[
+                types.Content(
+                    role="user",
+                    parts=[types.Part(text=f"{system_prompt}\n\n---\n\n{user_message}")]
+                )
+            ]
+        )
 
     last_error = None
     for attempt in range(max_retries):
         try:
-            from google.genai import types
-            response = client.models.generate_content(
-                model=settings.MODEL_NAME,
-                contents=[
-                    types.Content(
-                        role="user",
-                        parts=[types.Part(text=f"{system_prompt}\n\n---\n\n{user_message}")]
-                    )
-                ]
+            # Run sync SDK in thread pool so it doesn't block the event loop;
+            # wrap with a 12-second hard timeout.
+            response = await asyncio.wait_for(
+                loop.run_in_executor(None, _sync_call),
+                timeout=12.0
             )
             text = response.text.strip()
-            # Strip markdown fences if present
             text = re.sub(r"^```[a-z]*\n?", "", text).strip()
             text = re.sub(r"\n?```$", "", text).strip()
             return json.loads(text)
+        except asyncio.TimeoutError:
+            logger.warning(f"LLM timed out (attempt {attempt+1}/{max_retries})")
+            last_error = "Timeout"
         except json.JSONDecodeError as e:
-            logger.error(f"LLM returned non-JSON (attempt {attempt+1}): {e}")
-            return None  # JSON parse error won't be fixed by retry
+            logger.error(f"LLM non-JSON (attempt {attempt+1}): {e}")
+            return None  # retry won't help
         except Exception as e:
             err_str = str(e)
             last_error = e
-            # Retry on transient server-side errors (503, 429 rate limit)
             if any(code in err_str for code in ["503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED"]):
-                wait = 2 ** (attempt + 1)  # 2, 4, 8 seconds
-                logger.warning(f"LLM rate-limited/unavailable (attempt {attempt+1}/{max_retries}), retrying in {wait}s: {e}")
+                wait = attempt + 1  # 1s, 2s
+                logger.warning(f"LLM rate-limited (attempt {attempt+1}/{max_retries}), retry in {wait}s")
                 await asyncio.sleep(wait)
             else:
-                logger.error(f"LLM call failed (non-retryable): {e}")
+                logger.error(f"LLM non-retryable error: {e}")
                 return None
 
-    logger.error(f"LLM call failed after {max_retries} retries: {last_error}")
+    logger.warning(f"LLM exhausted retries ({max_retries}), using rule-based fallback. Last: {last_error}")
     return None
 
 

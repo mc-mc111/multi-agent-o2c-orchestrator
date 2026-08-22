@@ -603,7 +603,7 @@ async def list_all_orders(session: AsyncSession = Depends(get_async_session)):
 async def cancel_order_and_unreserve_stock(order_id: str, session: AsyncSession = Depends(get_async_session)):
     unreserved_details = []
     
-    # 1. Update in-memory active execution state & unreserve in-memory stock
+    # 1. Update in-memory active execution state
     if order_id in active_executions:
         mem_state = active_executions[order_id]
         if mem_state.get("overall_status") != "CANCELLED":
@@ -611,57 +611,94 @@ async def cancel_order_and_unreserve_stock(order_id: str, session: AsyncSession 
             mem_state["validation_status"] = "CANCELLED"
             reservations = mem_state.get("inventory_reservations", [])
             for res in reservations:
-                alloc = res.get("allocated_qty", 0)
-                if alloc > 0:
-                    sku_stmt = select(InventorySKU).where(InventorySKU.sku == res["sku"])
-                    sku_obj = (await session.execute(sku_stmt)).scalar_one_or_none()
-                    if sku_obj:
-                        sku_obj.available_quantity += alloc
-                        sku_obj.reserved_quantity = max(0, sku_obj.reserved_quantity - alloc)
-                        session.add(sku_obj)
-                        unreserved_details.append(f"Restored {alloc} units of {res['sku']}")
-                    res["allocated_qty"] = 0
+                res["allocated_qty"] = 0
 
-    # 2. Update DB order object if present
+    # 2. Update DB order object and restore stock
     try:
         stmt = select(Order).where(Order.id == order_id)
         order_obj = (await session.execute(stmt)).scalar_one_or_none()
         
-        if order_obj:
-            if order_obj.status != "CANCELLED":
-                item_stmt = select(OrderItem).where(OrderItem.order_id == order_id)
-                items = (await session.execute(item_stmt)).scalars().all()
-                
-                for item in items:
-                    if item.allocated_qty > 0:
-                        sku_stmt = select(InventorySKU).where(InventorySKU.sku == item.sku)
-                        sku_obj = (await session.execute(sku_stmt)).scalar_one_or_none()
-                        if sku_obj:
-                            sku_obj.available_quantity += item.allocated_qty
-                            sku_obj.reserved_quantity = max(0, sku_obj.reserved_quantity - item.allocated_qty)
-                            session.add(sku_obj)
-                            unreserved_details.append(f"Restored {item.allocated_qty} units of {item.sku}")
-                        item.allocated_qty = 0
-                        session.add(item)
+        if order_obj and order_obj.status != "CANCELLED":
+            # Read order items to know how much stock to restore
+            item_stmt = select(OrderItem).where(OrderItem.order_id == order_id)
+            items = (await session.execute(item_stmt)).scalars().all()
+            
+            for item in items:
+                if item.allocated_qty > 0:
+                    sku_stmt = select(InventorySKU).where(InventorySKU.sku == item.sku)
+                    sku_obj = (await session.execute(sku_stmt)).scalar_one_or_none()
+                    if sku_obj:
+                        sku_obj.available_quantity += item.allocated_qty
+                        sku_obj.reserved_quantity = max(0, sku_obj.reserved_quantity - item.allocated_qty)
+                        session.add(sku_obj)
+                        unreserved_details.append(f"Restored {item.allocated_qty}x {item.sku}")
+                # NOTE: We do NOT update item.allocated_qty to avoid unit_price gt=0 constraint issues
+                # The order status CANCELLED is sufficient to know stock has been released
                             
-                order_obj.status = "CANCELLED"
-                order_obj.updated_at = datetime.utcnow()
-                session.add(order_obj)
-                
-                audit = AuditLog(
-                    order_id=order_id,
-                    agent_name="TransactionManager",
-                    status="CANCELLED",
-                    message=f"Order cancelled by admin. Stock unreserved: {', '.join(unreserved_details) if unreserved_details else 'None'}"
-                )
-                session.add(audit)
-                
+            order_obj.status = "CANCELLED"
+            order_obj.updated_at = datetime.utcnow()
+            session.add(order_obj)
+            
+            audit = AuditLog(
+                order_id=order_id,
+                agent_name="TransactionManager",
+                status="CANCELLED",
+                message=f"Order cancelled by admin. Stock restored: {', '.join(unreserved_details) or 'None'}"
+            )
+            session.add(audit)
+            
         await session.commit()
     except Exception as e:
-        logger.error(f"Error restoring stock in DB for cancelled order {order_id}: {e}")
+        logger.error(f"Error cancelling order {order_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Cancel failed: {str(e)}")
 
     return {
         "status": "success",
-        "message": f"Order {order_id} marked as CANCELLED.",
+        "message": f"Order {order_id} cancelled.",
         "unreserved": unreserved_details
+    }
+
+@router.post("/admin/reconcile-inventory")
+async def reconcile_inventory(session: AsyncSession = Depends(get_async_session)):
+    """
+    Fixes orphaned reserved_quantity from completed/cancelled orders.
+    Recalculates reserved_quantity for every SKU based on current ACTIVE orders only.
+    Safe to call at any time — idempotent.
+    """
+    # Get all SKUs
+    all_skus = (await session.execute(select(InventorySKU))).scalars().all()
+    
+    # Get all active (non-terminal) order items
+    active_statuses = ['PENDING', 'VALIDATING', 'INVENTORY_CHECK', 'BILLING', 'HELD_FOR_DECISION']
+    active_orders_stmt = select(Order).where(Order.status.in_(active_statuses))
+    active_orders = (await session.execute(active_orders_stmt)).scalars().all()
+    active_order_ids = {o.id for o in active_orders}
+    
+    # Sum up allocated quantities only for active orders
+    sku_reserved: dict = {s.sku: 0 for s in all_skus}
+    if active_order_ids:
+        items_stmt = select(OrderItem).where(OrderItem.order_id.in_(active_order_ids))
+        active_items = (await session.execute(items_stmt)).scalars().all()
+        for item in active_items:
+            if item.sku in sku_reserved:
+                sku_reserved[item.sku] += item.allocated_qty
+    
+    # Update each SKU's reserved_quantity + restore available from over-reservation
+    corrections = []
+    for sku_obj in all_skus:
+        correct_reserved = sku_reserved.get(sku_obj.sku, 0)
+        old_reserved = sku_obj.reserved_quantity
+        if old_reserved != correct_reserved:
+            freed = old_reserved - correct_reserved
+            sku_obj.reserved_quantity = correct_reserved
+            if freed > 0:
+                sku_obj.available_quantity += freed  # restore to available
+            session.add(sku_obj)
+            corrections.append(f"{sku_obj.sku}: {old_reserved} -> {correct_reserved} (freed {max(0,freed)})")
+    
+    await session.commit()
+    return {
+        "status": "reconciled",
+        "corrections": corrections,
+        "message": f"Reconciled {len(corrections)} SKU(s)" if corrections else "Inventory already consistent — no changes needed."
     }
