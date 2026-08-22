@@ -15,20 +15,20 @@ if settings.CLOUDINARY_CLOUD_NAME and settings.CLOUDINARY_API_KEY:
         secure=True
     )
 
-async def upload_file_to_cloudinary(file_bytes: bytes, filename: str, folder: str = "o2c_documents") -> Optional[str]:
-    """Uploads file bytes to Cloudinary and returns the secure URL."""
+async def upload_file_to_cloudinary(file_bytes: bytes, filename: str, folder: str = "supervity") -> Optional[str]:
+    """Uploads file bytes to Cloudinary under the 'supervity' folder and returns the secure URL."""
     try:
         if not settings.CLOUDINARY_CLOUD_NAME or settings.CLOUDINARY_CLOUD_NAME == "your-cloud-name":
             logger.warning("Cloudinary credentials not set; returning mock storage URL.")
-            return f"https://res.cloudinary.com/demo/image/upload/{folder}/{filename}"
+            return f"https://res.cloudinary.com/demo/image/upload/supervity/{filename}"
         
         response = cloudinary.uploader.upload(
             file_bytes,
-            folder=folder,
+            folder="supervity",
             public_id=filename.split(".")[0],
             resource_type="auto"
         )
         return response.get("secure_url")
     except Exception as e:
         logger.error(f"Cloudinary upload failed: {e}")
-        return f"https://res.cloudinary.com/dg33de6nl/image/upload/v1/{folder}/{filename}"
+        return f"https://res.cloudinary.com/dg33de6nl/image/upload/v1/supervity/{filename}"

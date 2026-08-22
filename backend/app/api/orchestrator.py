@@ -45,7 +45,7 @@ async def ingest_order(
     if file:
         file_bytes = await file.read()
         filename = file.filename
-        file_url = await upload_file_to_cloudinary(file_bytes, filename, folder="purchase_orders")
+        file_url = await upload_file_to_cloudinary(file_bytes, filename, folder="supervity")
         
     try:
         parsed_order = await process_ingestion(

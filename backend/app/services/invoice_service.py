@@ -152,11 +152,11 @@ async def generate_invoice_document(
     pdf_filename = f"{invoice_id}.pdf"
     html_filename = f"{invoice_id}.html"
     
-    pdf_url = await upload_file_to_cloudinary(pdf_bytes, pdf_filename, folder="invoices")
-    html_url = await upload_file_to_cloudinary(html_content.encode("utf-8"), html_filename, folder="invoices_html")
+    pdf_url = await upload_file_to_cloudinary(pdf_bytes, pdf_filename, folder="supervity")
+    html_url = await upload_file_to_cloudinary(html_content.encode("utf-8"), html_filename, folder="supervity")
     
     return {
         "html_content": html_content,
-        "pdf_url": pdf_url or f"https://res.cloudinary.com/dg33de6nl/image/upload/v1/invoices/{pdf_filename}",
-        "html_url": html_url or f"https://res.cloudinary.com/dg33de6nl/image/upload/v1/invoices_html/{html_filename}"
+        "pdf_url": pdf_url or f"https://res.cloudinary.com/dg33de6nl/image/upload/v1/supervity/{pdf_filename}",
+        "html_url": html_url or f"https://res.cloudinary.com/dg33de6nl/image/upload/v1/supervity/{html_filename}"
     }
