@@ -212,6 +212,92 @@ async def approve_held_order(order_id: str, session: AsyncSession = Depends(get_
         
     return {"status": "approved", "order_id": order_id}
 
+@router.get("/orders/{order_id}/details")
+async def get_order_details(order_id: str, session: AsyncSession = Depends(get_async_session)):
+    """Returns complete details of an order, including line items, cancellation/stage status, and full audit logs."""
+    stmt = select(Order).where(Order.id == order_id)
+    order_obj = (await session.execute(stmt)).scalar_one_or_none()
+    
+    order_data = {}
+    if order_obj:
+        order_data = {
+            "id": order_obj.id,
+            "customer_id": order_obj.customer_id,
+            "status": order_obj.status,
+            "raw_input_type": order_obj.raw_input_type,
+            "raw_input_url": order_obj.raw_input_url,
+            "subtotal": order_obj.subtotal,
+            "tax_amount": order_obj.tax_amount,
+            "shipping_cost": order_obj.shipping_cost,
+            "total_amount": order_obj.total_amount,
+            "risk_score": order_obj.risk_score,
+            "risk_level": order_obj.risk_level,
+            "created_at": order_obj.created_at.isoformat() if order_obj.created_at else None,
+            "updated_at": order_obj.updated_at.isoformat() if order_obj.updated_at else None,
+        }
+    elif order_id in active_executions:
+        st = active_executions[order_id]
+        order_data = {
+            "id": order_id,
+            "customer_id": st.get("customer_id", "UNKNOWN"),
+            "status": st.get("overall_status", "PENDING"),
+            "subtotal": st.get("subtotal", 0.0),
+            "tax_amount": st.get("tax_amount", 0.0),
+            "shipping_cost": st.get("shipping_cost", 0.0),
+            "total_amount": st.get("total_amount", 0.0),
+            "risk_score": st.get("risk_score", 0.0),
+            "risk_level": st.get("risk_level", "LOW_RISK"),
+            "created_at": datetime.utcnow().isoformat(),
+            "updated_at": datetime.utcnow().isoformat(),
+        }
+    else:
+        raise HTTPException(status_code=404, detail=f"Order '{order_id}' not found.")
+
+    item_stmt = select(OrderItem).where(OrderItem.order_id == order_id)
+    db_items = (await session.execute(item_stmt)).scalars().all()
+    items = [
+        {
+            "sku": i.sku,
+            "requested_qty": i.requested_qty,
+            "allocated_qty": i.allocated_qty,
+            "backordered_qty": i.backordered_qty,
+            "unit_price": i.unit_price,
+            "line_total": i.line_total
+        }
+        for i in db_items
+    ]
+    if not items and order_id in active_executions:
+        items = active_executions[order_id].get("inventory_reservations", [])
+
+    audit_stmt = select(AuditLog).where(AuditLog.order_id == order_id).order_by(AuditLog.created_at.asc())
+    db_audits = (await session.execute(audit_stmt)).scalars().all()
+    audit_logs = [
+        {
+            "agent_name": a.agent_name,
+            "status": a.status,
+            "message": a.message,
+            "payload_json": a.payload_json,
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        }
+        for a in db_audits
+    ]
+    if order_id in active_executions:
+        mem_audits = active_executions[order_id].get("audit_logs", [])
+        for ma in mem_audits:
+            audit_logs.append({
+                "agent_name": ma.get("agent_name", "Orchestrator"),
+                "status": ma.get("status", "INFO"),
+                "message": ma.get("message", ""),
+                "payload_json": json.dumps(ma.get("payload")) if ma.get("payload") else None,
+                "created_at": ma.get("timestamp") or datetime.utcnow().isoformat()
+            })
+
+    return {
+        "order": order_data,
+        "items": items,
+        "audit_logs": audit_logs
+    }
+
 @router.get("/invoices/{invoice_id}/pdf")
 async def get_invoice_pdf(invoice_id: str):
     """Zero-404 Endpoint serving generated PDF invoice directly."""
