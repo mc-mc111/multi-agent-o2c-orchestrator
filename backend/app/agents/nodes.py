@@ -239,11 +239,17 @@ async def billing_node(state: O2CState) -> Dict[str, Any]:
     audit_logs = list(state.get("audit_logs", []))
     reservations = state.get("inventory_reservations", [])
     
+    # Calculate order financial amounts
     subtotal = sum(item["line_total"] for item in reservations)
-    tax_rate = 0.0825
-    tax_amount = round(subtotal * tax_rate, 2)
-    shipping_cost = 50.00 if subtotal < 5000.0 else 0.0
-    total_amount = round(subtotal + tax_amount + shipping_cost, 2)
+    
+    if subtotal == 0 or len(reservations) == 0:
+        tax_amount = 0.0
+        shipping_cost = 0.0
+        total_amount = 0.0
+    else:
+        tax_amount = round(subtotal * 0.0825, 2)
+        shipping_cost = 0.0 if subtotal > 5000.0 else 50.0
+        total_amount = round(subtotal + tax_amount + shipping_cost, 2)
     
     invoice_id = f"INV-2026-{state['order_id'].split('-')[-1]}"
     

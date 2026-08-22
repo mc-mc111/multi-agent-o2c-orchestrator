@@ -258,3 +258,55 @@ async def list_customers(session: AsyncSession = Depends(get_async_session)):
     stmt = select(Customer)
     customers = (await session.execute(stmt)).scalars().all()
     return customers
+
+@router.post("/inventory/add")
+async def add_inventory_sku(payload: Dict[str, Any], session: AsyncSession = Depends(get_async_session)):
+    sku_code = payload.get("sku", "").strip().upper()
+    name = payload.get("name", "").strip()
+    price = float(payload.get("unit_price", 100.0))
+    qty = int(payload.get("available_quantity", 0))
+    
+    if not sku_code or not name:
+        raise HTTPException(status_code=400, detail="SKU code and name required")
+        
+    stmt = select(InventorySKU).where(InventorySKU.sku == sku_code)
+    existing = (await session.execute(stmt)).scalar_one_or_none()
+    
+    if existing:
+        existing.available_quantity += qty
+        existing.unit_price = price
+        existing.name = name
+    else:
+        new_sku = InventorySKU(
+            sku=sku_code,
+            name=name,
+            unit_price=price,
+            available_quantity=qty,
+            reserved_quantity=0,
+            reorder_threshold=5
+        )
+        session.add(new_sku)
+        
+    await session.commit()
+    return {"status": "success", "sku": sku_code}
+
+@router.post("/customers/add")
+async def add_customer_account(payload: Dict[str, Any], session: AsyncSession = Depends(get_async_session)):
+    name = payload.get("name", "").strip()
+    email = payload.get("email", "").strip()
+    limit = float(payload.get("credit_limit", 50000.0))
+    
+    if not name or not email:
+        raise HTTPException(status_code=400, detail="Name and email required")
+        
+    cust_id = f"CUST-{uuid.uuid4().hex[:4].upper()}"
+    new_cust = Customer(
+        id=cust_id,
+        name=name,
+        email=email,
+        credit_limit=limit,
+        current_exposure=0.0
+    )
+    session.add(new_cust)
+    await session.commit()
+    return {"status": "success", "customer_id": cust_id}
