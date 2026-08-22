@@ -162,18 +162,15 @@ async def generate_invoice_document(
     pdf_filename = f"{invoice_id}.pdf"
     html_filename = f"{invoice_id}.html"
     
-    cloudinary_pdf = await upload_file_to_cloudinary(pdf_bytes, pdf_filename, folder="supervity")
-    cloudinary_html = await upload_file_to_cloudinary(html_content.encode("utf-8"), html_filename, folder="supervity")
+    pdf_url = await upload_file_to_cloudinary(pdf_bytes, pdf_filename, folder="supervity")
+    html_url = await upload_file_to_cloudinary(html_content.encode("utf-8"), html_filename, folder="supervity")
     
     # Fallback to backend served endpoint if Cloudinary returns 404 or fails
     fallback_pdf_url = f"/api/v1/invoices/{invoice_id}/pdf"
     fallback_html_url = f"/api/v1/invoices/{invoice_id}/html"
     
-    final_pdf_url = cloudinary_pdf if (cloudinary_pdf and "res.cloudinary.com" in cloudinary_pdf and "demo" not in cloudinary_pdf) else fallback_pdf_url
-    final_html_url = cloudinary_html if (cloudinary_html and "res.cloudinary.com" in cloudinary_html and "demo" not in cloudinary_html) else fallback_html_url
-    
     return {
         "html_content": html_content,
-        "pdf_url": final_pdf_url,
-        "html_url": final_html_url
+        "pdf_url": pdf_url or fallback_pdf_url,
+        "html_url": html_url or fallback_html_url
     }
