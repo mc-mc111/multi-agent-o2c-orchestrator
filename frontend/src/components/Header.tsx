@@ -4,29 +4,8 @@ import React, { useState } from 'react';
 import { Cpu, Database, Cloud, Sparkles, RefreshCw, CheckCircle2 } from 'lucide-react';
 import { getApiBaseUrl } from '@/lib/api';
 
-interface HeaderProps {
-  onSeedReset: () => void;
-}
+export const Header: React.FC = () => {
 
-export const Header: React.FC<HeaderProps> = ({ onSeedReset }) => {
-  const [seeding, setSeeding] = useState(false);
-  const [seedSuccess, setSeedSuccess] = useState(false);
-
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      const res = await fetch(`${getApiBaseUrl()}/api/v1/seed`, { method: "POST" });
-      if (res.ok) {
-        setSeedSuccess(true);
-        onSeedReset();
-        setTimeout(() => setSeedSuccess(false), 3000);
-      }
-    } catch (e) {
-      console.error("Seed failed", e);
-    } finally {
-      setSeeding(false);
-    }
-  };
 
   return (
     <header className="sticky top-0 z-40 w-full glass-panel border-b border-slate-800/80 px-6 py-3.5">
@@ -71,22 +50,6 @@ export const Header: React.FC<HeaderProps> = ({ onSeedReset }) => {
               <span className="font-semibold text-sky-400">Cloudinary CDN</span>
             </div>
           </div>
-
-          {/* Seed Database Trigger */}
-          <button
-            onClick={handleSeed}
-            disabled={seeding}
-            className="flex items-center space-x-1.5 px-3.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition"
-          >
-            {seeding ? (
-              <RefreshCw className="h-3.5 w-3.5 animate-spin text-sky-400" />
-            ) : seedSuccess ? (
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-            ) : (
-              <RefreshCw className="h-3.5 w-3.5 text-slate-400" />
-            )}
-            <span>{seedSuccess ? "Seeded!" : "Seed Database"}</span>
-          </button>
         </div>
       </div>
     </header>

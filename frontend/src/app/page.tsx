@@ -19,7 +19,6 @@ import { getApiBaseUrl } from '@/lib/api';
 function MainApp() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [activeTab, setActiveTab] = useState<ActiveTab>('orchestrator');
-  const [seeding, setSeeding] = useState(false);
 
   // Orchestrator State
   const [isExecuting, setIsExecuting] = useState(false);
@@ -53,16 +52,7 @@ function MainApp() {
     setIsAuthenticated(false);
   };
 
-  const handleSeed = async () => {
-    setSeeding(true);
-    try {
-      await fetch(`${getApiBaseUrl()}/api/v1/seed`, { method: "POST" });
-    } catch (e) {
-      console.error("Seed failed", e);
-    } finally {
-      setSeeding(false);
-    }
-  };
+
 
   const startAgentStream = (orderId: string) => {
     if (activeEventSource) {
@@ -176,8 +166,6 @@ function MainApp() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         onLock={handleLock}
-        onSeed={handleSeed}
-        seeding={seeding}
       />
 
       {/* Main Workspace Content Area */}

@@ -13,16 +13,12 @@ interface SidebarProps {
   activeTab: ActiveTab;
   setActiveTab: (tab: ActiveTab) => void;
   onLock: () => void;
-  onSeed: () => void;
-  seeding: boolean;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
   activeTab,
   setActiveTab,
-  onLock,
-  onSeed,
-  seeding
+  onLock
 }) => {
   const { theme, toggleTheme } = useTheme();
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -88,17 +84,6 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Footer Controls */}
       <div className="space-y-2 pt-4 border-t border-slate-200 dark:border-slate-800">
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={onSeed}
-          disabled={seeding}
-          title={isCollapsed ? "Reset & Seed DB" : undefined}
-          className={`w-full ${isCollapsed ? 'justify-center px-0' : 'justify-start space-x-2'} text-xs`}
-        >
-          <RefreshCw className={`h-3.5 w-3.5 text-sky-500 shrink-0 ${seeding ? 'animate-spin' : ''}`} />
-          {!isCollapsed && <span className="truncate">{seeding ? 'Seeding...' : 'Reset & Seed DB'}</span>}
-        </Button>
 
         <Button
           variant="ghost"
