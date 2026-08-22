@@ -43,37 +43,52 @@ def _get_ai_client():
         return None
 
 
-async def _call_llm(system_prompt: str, user_message: str) -> Optional[dict]:
+async def _call_llm(system_prompt: str, user_message: str, max_retries: int = 3) -> Optional[dict]:
     """
-    Fire a Gemini call with a system prompt + user message.
+    Fire a Gemini call with exponential backoff retry for 503/429 rate-limit errors.
     Returns a parsed dict from the JSON block in the response, or None on failure.
     """
+    import asyncio
     client = _get_ai_client()
     if not client:
         logger.warning("No Gemini client available — falling back to rule-based logic.")
         return None
-    try:
-        from google.genai import types
-        response = client.models.generate_content(
-            model=settings.MODEL_NAME,
-            contents=[
-                types.Content(
-                    role="user",
-                    parts=[types.Part(text=f"{system_prompt}\n\n---\n\n{user_message}")]
-                )
-            ]
-        )
-        text = response.text.strip()
-        # Strip markdown fences if present
-        text = re.sub(r"^```[a-z]*\n?", "", text).strip()
-        text = re.sub(r"\n?```$", "", text).strip()
-        return json.loads(text)
-    except json.JSONDecodeError as e:
-        logger.error(f"LLM returned non-JSON: {e} — raw: {response.text[:300]}")
-        return None
-    except Exception as e:
-        logger.error(f"LLM call failed: {e}")
-        return None
+
+    last_error = None
+    for attempt in range(max_retries):
+        try:
+            from google.genai import types
+            response = client.models.generate_content(
+                model=settings.MODEL_NAME,
+                contents=[
+                    types.Content(
+                        role="user",
+                        parts=[types.Part(text=f"{system_prompt}\n\n---\n\n{user_message}")]
+                    )
+                ]
+            )
+            text = response.text.strip()
+            # Strip markdown fences if present
+            text = re.sub(r"^```[a-z]*\n?", "", text).strip()
+            text = re.sub(r"\n?```$", "", text).strip()
+            return json.loads(text)
+        except json.JSONDecodeError as e:
+            logger.error(f"LLM returned non-JSON (attempt {attempt+1}): {e}")
+            return None  # JSON parse error won't be fixed by retry
+        except Exception as e:
+            err_str = str(e)
+            last_error = e
+            # Retry on transient server-side errors (503, 429 rate limit)
+            if any(code in err_str for code in ["503", "429", "UNAVAILABLE", "RESOURCE_EXHAUSTED"]):
+                wait = 2 ** (attempt + 1)  # 2, 4, 8 seconds
+                logger.warning(f"LLM rate-limited/unavailable (attempt {attempt+1}/{max_retries}), retrying in {wait}s: {e}")
+                await asyncio.sleep(wait)
+            else:
+                logger.error(f"LLM call failed (non-retryable): {e}")
+                return None
+
+    logger.error(f"LLM call failed after {max_retries} retries: {last_error}")
+    return None
 
 
 # ---------------------------------------------------------------------------
@@ -667,6 +682,20 @@ async def risk_node(state: O2CState) -> Dict[str, Any]:
             risk_score=risk_score,
             risk_level=risk_level
         )
+
+        # ---- Release reserved stock when order COMPLETES ----
+        # reserved_quantity was locked by InventoryAgent; on completion we move it
+        # out of reserved (it's now committed/shipped) so inventory shows real numbers.
+        if overall_status == "COMPLETED":
+            for res in state.get("inventory_reservations", []):
+                alloc_qty = res.get("allocated_qty", 0)
+                if alloc_qty > 0:
+                    sku_stmt = select(InventorySKU).where(InventorySKU.sku == res["sku"])
+                    sku_obj = (await session.execute(sku_stmt)).scalar_one_or_none()
+                    if sku_obj:
+                        sku_obj.reserved_quantity = max(0, sku_obj.reserved_quantity - alloc_qty)
+                        session.add(sku_obj)
+
         for log in audit_logs:
             audit_obj = AuditLog(
                 order_id=state["order_id"],

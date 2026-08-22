@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   CheckCircle2, XCircle, AlertTriangle, ShieldCheck, 
   FileText, ExternalLink, Activity, Eye, Layers, ShieldAlert, Check, Loader2, ArrowLeft, ChevronRight, ChevronLeft, Download
@@ -166,6 +166,59 @@ export const StepByStepTelemetry: React.FC<StepByStepTelemetryProps> = ({
           );
         })}
       </div>
+
+      {/* ═══ AGENT RUNNING ANIMATION BANNER ═══ */}
+      {isExecuting && (
+        <div className="relative overflow-hidden rounded-2xl border border-sky-500/30 bg-gradient-to-r from-slate-900 via-sky-950 to-indigo-950 p-5 shadow-xl">
+          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'linear-gradient(rgba(56,189,248,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(56,189,248,0.3) 1px, transparent 1px)', backgroundSize: '30px 30px' }} />
+          <div className="relative flex items-start justify-between gap-4">
+            <div className="flex-1 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <div className="h-10 w-10 rounded-full bg-sky-500/20 border border-sky-500/40 flex items-center justify-center">
+                    <Activity className="h-5 w-5 text-sky-400 animate-pulse" />
+                  </div>
+                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-400 animate-ping" />
+                  <span className="absolute -top-1 -right-1 h-3 w-3 rounded-full bg-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-white">🤖 {current_agent || 'Orchestrator'} is running...</p>
+                  <p className="text-[11px] text-sky-300 mt-0.5">LLM agents are processing your order in real-time via Gemini</p>
+                </div>
+              </div>
+              {currentState?.audit_logs?.length > 0 && (
+                <div className="bg-white/5 backdrop-blur border border-white/10 rounded-xl p-3">
+                  <p className="text-[10px] font-bold text-sky-400 uppercase tracking-wider mb-1">Latest Agent Update</p>
+                  <p className="text-xs text-slate-200 font-mono leading-relaxed">
+                    {currentState.audit_logs[currentState.audit_logs.length - 1]?.message || 'Processing...'}
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col items-end gap-3 shrink-0">
+              <div className="flex items-center gap-1.5">
+                {[0,1,2,3].map(i => (
+                  <div key={i} className="h-2 w-2 rounded-full bg-sky-400" style={{ animationName: 'agentBounce', animationDuration: '1.4s', animationTimingFunction: 'ease-in-out', animationDelay: `${i * 0.2}s`, animationIterationCount: 'infinite' }} />
+                ))}
+              </div>
+              <div className="flex flex-col gap-1.5">
+                {stages.map(st => (
+                  <div key={st.id} className="flex items-center gap-2">
+                    <div className={`h-1.5 w-20 rounded-full transition-all duration-500 ${ st.done ? 'bg-emerald-500' : 'bg-white/10' }`} />
+                    <span className="text-[9px] text-slate-400 font-medium">{st.title.split(': ')[1]}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <style>{`
+            @keyframes agentBounce {
+              0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+              40% { transform: scale(1.2); opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
 
       {/* SINGLE FOCUSED STAGE CARD */}
       <Card className="shadow-lg border-slate-200 dark:border-slate-800">

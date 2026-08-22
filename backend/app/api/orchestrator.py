@@ -71,6 +71,143 @@ async def trigger_seed():
         logger.error(f"Seeding failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/presets")
+async def get_test_presets(session: AsyncSession = Depends(get_async_session)):
+    """
+    Dynamically generates edge-case test presets from live DB data.
+    No values are hardcoded — all customer IDs, SKUs, quantities and prices come from Neon DB.
+    """
+    customers = (await session.execute(select(Customer))).scalars().all()
+    skus = (await session.execute(select(InventorySKU))).scalars().all()
+
+    if not customers or not skus:
+        return {"presets": []}
+
+    # Helpers
+    active_custs = [c for c in customers if c.is_active]
+    inactive_custs = [c for c in customers if not c.is_active]
+    in_stock = [s for s in skus if s.available_quantity > 0]
+    out_of_stock = [s for s in skus if s.available_quantity == 0]
+    low_stock = sorted(in_stock, key=lambda s: s.available_quantity)  # ascending
+
+    presets = []
+
+    # --- Preset 1: Happy Path (fully in-stock, valid customer) ---
+    if active_custs and len(in_stock) >= 2:
+        c = active_custs[0]
+        s1, s2 = in_stock[0], in_stock[1]
+        presets.append({
+            "id": "happy_path",
+            "label": "✅ Happy Path — Fully In-Stock Order",
+            "description": f"Valid customer {c.id}, 2 SKUs both fully available. Expected: COMPLETED.",
+            "input_type": "json",
+            "payload": {
+                "customer_id": c.id,
+                "shipping_address": c.shipping_address,
+                "items": [
+                    {"sku": s1.sku, "requested_qty": min(2, s1.available_quantity), "unit_price": s1.unit_price},
+                    {"sku": s2.sku, "requested_qty": min(3, s2.available_quantity), "unit_price": s2.unit_price}
+                ]
+            }
+        })
+
+    # --- Preset 2: Inventory Shortage (request more than available) ---
+    if active_custs and low_stock:
+        c = active_custs[0]
+        s = low_stock[0]
+        overorder_qty = s.available_quantity + 10
+        presets.append({
+            "id": "inventory_shortage",
+            "label": "⚠️ Inventory Shortage — Backorder Triggered",
+            "description": f"Orders {overorder_qty} units of {s.sku} but only {s.available_quantity} available. Expected: HELD_FOR_DECISION.",
+            "input_type": "json",
+            "payload": {
+                "customer_id": c.id,
+                "shipping_address": c.shipping_address,
+                "items": [
+                    {"sku": s.sku, "requested_qty": overorder_qty, "unit_price": s.unit_price}
+                ]
+            }
+        })
+
+    # --- Preset 3: High-Value Order (risk flag) ---
+    if active_custs and in_stock:
+        # Find customer closest to credit limit
+        c = sorted(active_custs, key=lambda x: x.credit_limit - x.current_exposure)[0]
+        s = in_stock[0]
+        # Request enough to exceed $10k threshold
+        high_qty = max(1, int(10500 / s.unit_price) + 1)
+        presets.append({
+            "id": "high_value_risk",
+            "label": "🔴 High-Value Risk — Credit Exposure Alert",
+            "description": f"Order value ~${high_qty * s.unit_price:,.0f} for customer {c.id} (credit limit ${c.credit_limit:,.0f}). Expected: HELD_FOR_REVIEW.",
+            "input_type": "json",
+            "payload": {
+                "customer_id": c.id,
+                "shipping_address": c.shipping_address,
+                "items": [
+                    {"sku": s.sku, "requested_qty": min(high_qty, s.available_quantity), "unit_price": s.unit_price}
+                ]
+            }
+        })
+
+    # --- Preset 4: Unknown Customer (validation failure) ---
+    if in_stock:
+        s = in_stock[0]
+        presets.append({
+            "id": "unknown_customer",
+            "label": "❌ Unknown Customer — Validation Failure",
+            "description": "Uses a non-existent customer ID. Expected: VALIDATION_ERROR.",
+            "input_type": "json",
+            "payload": {
+                "customer_id": "CUST-INVALID-9999",
+                "shipping_address": "123 Unknown Street, TX",
+                "items": [
+                    {"sku": s.sku, "requested_qty": 1, "unit_price": s.unit_price}
+                ]
+            }
+        })
+
+    # --- Preset 5: Inactive Customer ---
+    if inactive_custs and in_stock:
+        c = inactive_custs[0]
+        s = in_stock[0]
+        presets.append({
+            "id": "inactive_customer",
+            "label": "🚫 Inactive Customer — Blocked at Validation",
+            "description": f"Customer {c.id} is flagged as inactive. Expected: VALIDATION_ERROR.",
+            "input_type": "json",
+            "payload": {
+                "customer_id": c.id,
+                "shipping_address": c.shipping_address,
+                "items": [
+                    {"sku": s.sku, "requested_qty": 1, "unit_price": s.unit_price}
+                ]
+            }
+        })
+
+    # --- Preset 6: Out-of-Stock SKU ---
+    if active_custs and out_of_stock:
+        c = active_custs[0]
+        s = out_of_stock[0]
+        presets.append({
+            "id": "out_of_stock",
+            "label": "📦 Out of Stock — Zero Inventory SKU",
+            "description": f"{s.sku} has 0 units available. Expected: HELD_FOR_DECISION.",
+            "input_type": "json",
+            "payload": {
+                "customer_id": c.id,
+                "shipping_address": c.shipping_address,
+                "items": [
+                    {"sku": s.sku, "requested_qty": 5, "unit_price": s.unit_price}
+                ]
+            }
+        })
+
+    return {"presets": presets, "customers": [{"id": c.id, "name": c.name} for c in active_custs], "skus": [{"sku": s.sku, "name": s.name, "available": s.available_quantity, "price": s.unit_price} for s in skus]}
+
+
+
 @router.post("/ingest")
 async def ingest_order(
     input_type: str = Form("text"),  # text or json
