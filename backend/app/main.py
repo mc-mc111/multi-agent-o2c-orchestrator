@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
     logger.info("Shutting down O2C Orchestrator Backend.")
 
 app = FastAPI(
-    title="Enterprise Order-to-Cash (O2C) Multi-Agent Orchestrator API",
+    title="Order-to-Cash (O2C) Multi-Agent Orchestrator API",
     description="Full-stack asynchronous multi-agent system executing B2B order processing, inventory reservation, billing, and risk analysis.",
     version="1.0.0",
     lifespan=lifespan

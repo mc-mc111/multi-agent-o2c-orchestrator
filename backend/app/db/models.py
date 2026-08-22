@@ -8,7 +8,7 @@ class User(SQLModel, table=True):
     id: Optional[int] = Field(default=None, primary_key=True)
     email: str = Field(index=True, unique=True, nullable=False)
     hashed_password: str = Field(nullable=False)
-    full_name: str = Field(default="Enterprise Admin")
+    full_name: str = Field(default="Admin User")
     role: str = Field(default="admin")
     created_at: datetime = Field(default_factory=datetime.utcnow)
 

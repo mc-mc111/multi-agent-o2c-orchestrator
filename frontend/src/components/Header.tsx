@@ -42,7 +42,7 @@ export const Header: React.FC<HeaderProps> = ({ onSeedReset }) => {
                 Operations Command Center
               </span>
             </div>
-            <p className="text-xs text-slate-400">Enterprise Multi-Agent Orchestration Platform</p>
+            <p className="text-xs text-slate-400">Multi-Agent Orchestration Platform</p>
           </div>
         </div>
 

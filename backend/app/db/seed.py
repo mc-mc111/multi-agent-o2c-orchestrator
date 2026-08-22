@@ -39,7 +39,7 @@ async def seed_database():
         sample_customers = [
             Customer(
                 id="CUST-1001",
-                name="Acme Enterprise Solutions",
+                name="Acme Solutions",
                 email="procurement@acme-corp.com",
                 credit_limit=100000.0,
                 current_exposure=12500.0,
@@ -77,7 +77,7 @@ async def seed_database():
         sample_skus = [
             InventorySKU(
                 sku="SKU-SERVER-01",
-                name="Enterprise Rack Server 2U (64-Core, 256GB RAM)",
+                name="Rack Server 2U (64-Core, 256GB RAM)",
                 description="High-performance data center Rack Server",
                 unit_price=3500.00,
                 available_quantity=50,
@@ -105,7 +105,7 @@ async def seed_database():
             InventorySKU(
                 sku="SKU-SWITCH-04",
                 name="Managed 48-Port PoE+ Gigabit Network Switch",
-                description="Layer 3 Enterprise Core Switch",
+                description="Layer 3 Core Switch",
                 unit_price=1200.00,
                 available_quantity=120,
                 reserved_quantity=0,

@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Supervity O2C Command Center | Multi-Agent Orchestrator",
-  description: "Enterprise Operations & Ingestion Command Center for B2B Order-to-Cash Automation",
+  description: "Operations & Ingestion Command Center for B2B Order-to-Cash Automation",
 };
 
 export default function RootLayout({

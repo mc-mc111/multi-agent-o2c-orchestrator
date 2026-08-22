@@ -1,6 +1,6 @@
-# Enterprise Order-to-Cash (O2C) Multi-Agent Orchestration Platform
+# Order-to-Cash (O2C) Multi-Agent Orchestration Platform
 
-An enterprise-grade Operations & Ingestion Command Center automating the B2B Order-to-Cash lifecycle via a multi-agent state machine (LangGraph + FastAPI), Neon PostgreSQL database, Cloudinary document storage, local OCR ingestion engine, real-time Server-Sent Events (SSE) telemetry, and Next.js frontend.
+An Operations & Ingestion Command Center automating the B2B Order-to-Cash lifecycle via a multi-agent state machine (LangGraph + FastAPI), Neon PostgreSQL database, Cloudinary document storage, local OCR ingestion engine, real-time Server-Sent Events (SSE) telemetry, and Next.js frontend.
 
 ## System Architecture
 

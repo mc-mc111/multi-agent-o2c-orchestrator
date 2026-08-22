@@ -236,7 +236,7 @@ async def billing_node(state: O2CState) -> Dict[str, Any]:
         invoice_id=invoice_id,
         order_id=state["order_id"],
         customer_id=state["customer_id"],
-        customer_name=state.get("customer_name", "Enterprise Customer"),
+        customer_name=state.get("customer_name", "Customer"),
         customer_email=state.get("customer_email", "billing@customer.com"),
         shipping_address=state.get("shipping_address", "N/A"),
         items=reservations,
