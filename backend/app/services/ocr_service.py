@@ -5,17 +5,18 @@ import logging
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
 import pypdf
+from google import genai
 from app.config import settings
 
 logger = logging.getLogger("ocr_service")
 
-try:
-    import google.generativeai as genai
-    if settings.GEMINI_API_KEY:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-except Exception as e:
-    logger.warning(f"google.generativeai module import warning: {e}")
-    genai = None
+# Initialize official google-genai client
+ai_client = None
+if settings.GEMINI_API_KEY:
+    try:
+        ai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    except Exception as e:
+        logger.warning(f"Failed to initialize google-genai client: {e}")
 
 class OrderItemRequest(BaseModel):
     sku: str
@@ -46,11 +47,10 @@ def extract_text_from_pdf(pdf_bytes: bytes) -> str:
     return extracted_text.strip()
 
 async def parse_with_gemini(raw_content: str) -> Optional[OrderRequest]:
-    """Uses configured Gemini AI model (MODEL_NAME) to extract structured OrderRequest JSON from multi-modal text/PDF."""
-    if not genai or not settings.GEMINI_API_KEY:
+    """Uses official google-genai client (MODEL_NAME) to extract structured OrderRequest JSON from multi-modal text/PDF."""
+    if not ai_client:
         return None
     try:
-        model = genai.GenerativeModel(settings.MODEL_NAME)
         prompt = f"""
 Extract purchase order details into a strictly valid JSON object.
 Rules:
@@ -64,7 +64,10 @@ Raw Document Text:
 
 Return ONLY raw valid JSON.
 """
-        response = await model.generate_content_async(prompt)
+        response = ai_client.models.generate_content(
+            model=settings.MODEL_NAME,
+            contents=prompt
+        )
         text_resp = response.text.strip()
         if text_resp.startswith("```"):
             text_resp = re.sub(r"^```[a-z]*", "", text_resp).strip()
