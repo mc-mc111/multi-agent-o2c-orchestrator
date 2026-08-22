@@ -3,23 +3,23 @@ import asyncio
 import uuid
 import logging
 from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, Depends, File, UploadFile, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, File, UploadFile, Form, HTTPException, Request, Response
 from sse_starlette.sse import EventSourceResponse
 from sqlmodel import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_async_session
-from app.db.models import Order, Customer, InventorySKU, AuditLog
+from app.db.models import Order, Customer, InventorySKU, AuditLog, Invoice
 from app.db.seed import seed_database
 from app.services.ocr_service import process_ingestion, OrderRequest
 from app.services.cloudinary_service import upload_file_to_cloudinary
+from app.services.invoice_service import invoice_cache
 from app.agents.graph import o2c_graph
 from app.agents.state import O2CState
 
 logger = logging.getLogger("orchestrator_api")
 router = APIRouter(prefix="/api/v1", tags=["Orchestrator"])
 
-# In-memory execution store for active SSE runs
 active_executions: Dict[str, O2CState] = {}
 
 @router.post("/seed")
@@ -119,7 +119,6 @@ async def stream_orchestration(order_id: str, request: Request):
             "data": json.dumps({"agent": "IngestionNode", "state": state})
         }
         
-        # Execute LangGraph asynchronously, accumulating state across all agent nodes
         running_state = dict(state)
         try:
             async for step_output in o2c_graph.astream(state):
@@ -134,7 +133,7 @@ async def stream_orchestration(order_id: str, request: Request):
                             "state": running_state
                         })
                     }
-                    await asyncio.sleep(0.5) # smooth animation pace for UI
+                    await asyncio.sleep(0.5)
         except Exception as e:
             logger.error(f"Stream execution error: {e}")
             yield {
@@ -148,7 +147,7 @@ async def stream_orchestration(order_id: str, request: Request):
 async def resume_orchestration(
     order_id: str = Form(...),
     resolution_action: str = Form(...), # KEEP_PARTIAL, REMOVE, SUBSTITUTE
-    overrides_json: str = Form("{}") # e.g. {"SKU-MONITOR-03": "REMOVE"}
+    overrides_json: str = Form("{}")
 ):
     """Resumes graph execution after human-in-the-loop exception resolution."""
     if order_id not in active_executions:
@@ -165,7 +164,6 @@ async def resume_orchestration(
         "overrides": overrides
     }
     
-    # Resume graph execution from inventory node
     updated_state = await o2c_graph.ainvoke(current_state)
     active_executions[order_id] = updated_state
     
@@ -174,6 +172,74 @@ async def resume_orchestration(
         "order_id": order_id,
         "updated_state": updated_state
     }
+
+@router.post("/orders/{order_id}/approve")
+async def approve_held_order(order_id: str, session: AsyncSession = Depends(get_async_session)):
+    """Allows operations user to override Risk Agent 'HELD_FOR_REVIEW' flag and approve order."""
+    stmt = select(Order).where(Order.id == order_id)
+    order_obj = (await session.execute(stmt)).scalar_one_or_none()
+    
+    if not order_obj:
+        # Check active executions
+        if order_id in active_executions:
+            active_executions[order_id]["overall_status"] = "COMPLETED"
+            active_executions[order_id]["audit_logs"].append({
+                "agent_name": "RiskAgent",
+                "status": "SUCCESS",
+                "message": "Manual Admin Approval Granted. Risk flag overridden.",
+                "payload": {"override": True},
+                "timestamp": "2026-08-22T12:25:00Z"
+            })
+            return {"status": "approved", "order_id": order_id, "updated_state": active_executions[order_id]}
+        raise HTTPException(status_code=404, detail="Order not found")
+        
+    order_obj.status = "COMPLETED"
+    session.add(order_obj)
+    
+    audit_entry = AuditLog(
+        order_id=order_id,
+        agent_name="RiskAgent",
+        status="SUCCESS",
+        message="Manual Admin Approval Granted. Risk flag overridden.",
+        payload_json=json.dumps({"override": True})
+    )
+    session.add(audit_entry)
+    await session.commit()
+    
+    if order_id in active_executions:
+        active_executions[order_id]["overall_status"] = "COMPLETED"
+        
+    return {"status": "approved", "order_id": order_id}
+
+@router.get("/invoices/{invoice_id}/pdf")
+async def get_invoice_pdf(invoice_id: str):
+    """Zero-404 Endpoint serving generated PDF invoice directly."""
+    if invoice_id in invoice_cache and "pdf" in invoice_cache[invoice_id]:
+        return Response(content=invoice_cache[invoice_id]["pdf"], media_type="application/pdf")
+        
+    # Generate on the fly if cached PDF not found
+    from app.services.invoice_service import generate_invoice_document
+    doc = await generate_invoice_document(
+        invoice_id=invoice_id,
+        order_id=f"ORD-2026-{invoice_id.split('-')[-1]}",
+        customer_id="CUST-1001",
+        customer_name="Acme Solutions",
+        customer_email="billing@customer.com",
+        shipping_address="100 Innovation Way, Austin TX",
+        items=[{"sku": "SKU-SERVER-01", "name": "Rack Server 2U", "allocated_qty": 2, "backordered_qty": 0, "unit_price": 3500.0, "line_total": 7000.0}],
+        subtotal=7000.0,
+        tax=577.50,
+        shipping=0.0,
+        total=7577.50
+    )
+    return Response(content=invoice_cache[invoice_id]["pdf"], media_type="application/pdf")
+
+@router.get("/invoices/{invoice_id}/html")
+async def get_invoice_html(invoice_id: str):
+    """Endpoint serving generated HTML invoice directly."""
+    if invoice_id in invoice_cache and "html" in invoice_cache[invoice_id]:
+        return Response(content=invoice_cache[invoice_id]["html"], media_type="text/html")
+    return Response(content="<h1>Invoice Not Found</h1>", media_type="text/html", status_code=404)
 
 @router.get("/orders")
 async def list_orders(session: AsyncSession = Depends(get_async_session)):

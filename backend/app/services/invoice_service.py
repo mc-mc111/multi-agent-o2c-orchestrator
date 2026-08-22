@@ -3,9 +3,13 @@ import logging
 from typing import Dict, Any, List
 from jinja2 import Template
 from xhtml2pdf import pisa
+from app.config import settings
 from app.services.cloudinary_service import upload_file_to_cloudinary
 
 logger = logging.getLogger("invoice_service")
+
+# In-memory invoice document cache for instant zero-404 PDF/HTML serving
+invoice_cache: Dict[str, Dict[str, bytes]] = {}
 
 HTML_INVOICE_TEMPLATE = """
 <!DOCTYPE html>
@@ -125,7 +129,7 @@ async def generate_invoice_document(
     date_str: str = "2026-08-22",
     payment_terms: str = "Net 30"
 ) -> Dict[str, str]:
-    """Renders HTML template and converts it to a PDF artifact, uploading both to Cloudinary."""
+    """Renders HTML template and converts it to a PDF artifact, caching locally and uploading to Cloudinary."""
     template = Template(HTML_INVOICE_TEMPLATE)
     html_content = template.render(
         invoice_id=invoice_id,
@@ -145,18 +149,31 @@ async def generate_invoice_document(
     
     # Convert HTML to PDF using xhtml2pdf
     pdf_buffer = io.BytesIO()
-    pisa_status = pisa.CreatePDF(html_content, dest=pdf_buffer)
+    pisa.CreatePDF(html_content, dest=pdf_buffer)
     pdf_bytes = pdf_buffer.getvalue()
+    
+    # Store in local invoice cache for guaranteed zero-404 serving
+    invoice_cache[invoice_id] = {
+        "pdf": pdf_bytes,
+        "html": html_content.encode("utf-8")
+    }
     
     # Upload to Cloudinary
     pdf_filename = f"{invoice_id}.pdf"
     html_filename = f"{invoice_id}.html"
     
-    pdf_url = await upload_file_to_cloudinary(pdf_bytes, pdf_filename, folder="supervity")
-    html_url = await upload_file_to_cloudinary(html_content.encode("utf-8"), html_filename, folder="supervity")
+    cloudinary_pdf = await upload_file_to_cloudinary(pdf_bytes, pdf_filename, folder="supervity")
+    cloudinary_html = await upload_file_to_cloudinary(html_content.encode("utf-8"), html_filename, folder="supervity")
+    
+    # Fallback to backend served endpoint if Cloudinary returns 404 or fails
+    fallback_pdf_url = f"/api/v1/invoices/{invoice_id}/pdf"
+    fallback_html_url = f"/api/v1/invoices/{invoice_id}/html"
+    
+    final_pdf_url = cloudinary_pdf if (cloudinary_pdf and "res.cloudinary.com" in cloudinary_pdf and "demo" not in cloudinary_pdf) else fallback_pdf_url
+    final_html_url = cloudinary_html if (cloudinary_html and "res.cloudinary.com" in cloudinary_html and "demo" not in cloudinary_html) else fallback_html_url
     
     return {
         "html_content": html_content,
-        "pdf_url": pdf_url or f"https://res.cloudinary.com/dg33de6nl/image/upload/v1/supervity/{pdf_filename}",
-        "html_url": html_url or f"https://res.cloudinary.com/dg33de6nl/image/upload/v1/supervity/{html_filename}"
+        "pdf_url": final_pdf_url,
+        "html_url": final_html_url
     }

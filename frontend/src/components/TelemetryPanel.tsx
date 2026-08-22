@@ -1,10 +1,11 @@
 "use client";
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   CheckCircle2, XCircle, AlertTriangle, ShieldCheck, 
-  FileText, ArrowRight, ExternalLink, Activity, Eye, Layers 
+  FileText, ExternalLink, Activity, Eye, Layers, ShieldAlert, Check
 } from 'lucide-react';
+import { getApiBaseUrl } from '@/lib/api';
 
 interface TelemetryPanelProps {
   currentState: any;
@@ -13,6 +14,7 @@ interface TelemetryPanelProps {
   onOpenValidationErrorModal: () => void;
   onOpenAuditModal: () => void;
   onOpenInvoiceModal: () => void;
+  onApproveOrder?: () => void;
 }
 
 export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
@@ -21,8 +23,11 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
   onOpenExceptionModal,
   onOpenValidationErrorModal,
   onOpenAuditModal,
-  onOpenInvoiceModal
+  onOpenInvoiceModal,
+  onApproveOrder
 }) => {
+  const [approving, setApproving] = useState(false);
+
   if (!currentState) {
     return (
       <div className="flex flex-col items-center justify-center h-full glass-panel rounded-2xl border border-slate-800 p-8 text-center">
@@ -43,7 +48,6 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
     validation_errors,
     inventory_status,
     inventory_reservations,
-    inventory_exceptions,
     billing_status,
     subtotal,
     tax_amount,
@@ -57,6 +61,24 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
     overall_status,
     audit_logs
   } = currentState;
+
+  const handleApprove = async () => {
+    setApproving(true);
+    try {
+      const res = await fetch(`${getApiBaseUrl()}/api/v1/orders/${order_id}/approve`, { method: "POST" });
+      if (res.ok && onApproveOrder) {
+        onApproveOrder();
+      }
+    } catch (e) {
+      console.error("Approve failed", e);
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const formattedPdfUrl = invoice_pdf_url 
+    ? (invoice_pdf_url.startsWith("http") ? invoice_pdf_url : `${getApiBaseUrl()}${invoice_pdf_url}`)
+    : null;
 
   return (
     <div className="flex flex-col h-full glass-panel rounded-2xl border border-slate-800 p-5 overflow-y-auto">
@@ -199,12 +221,12 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
         {/* STAGE 4: RISK CARD */}
         <div className={`p-4 rounded-xl border transition ${
           risk_status === 'LOW_RISK' ? 'bg-slate-900/90 border-emerald-500/30' :
-          risk_status === 'HIGH_RISK' ? 'bg-rose-950/40 border-rose-500/40' :
+          risk_status === 'HIGH_RISK' || overall_status === 'HELD_FOR_REVIEW' ? 'bg-rose-950/40 border-rose-500/40' :
           'bg-slate-900/40 border-slate-800'
         }`}>
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
-              <ShieldCheck className="h-4 w-4 text-purple-400" />
+              <ShieldAlert className="h-4 w-4 text-purple-400" />
               Stage 4: Risk Agent
             </span>
             {risk_status && (
@@ -216,7 +238,7 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
               </span>
             )}
           </div>
-          <div className="text-xs text-slate-400 space-y-1">
+          <div className="text-xs text-slate-400 space-y-2">
             {risk_flags && risk_flags.length > 0 ? (
               <div className="space-y-1 max-h-16 overflow-y-auto text-[10px] text-amber-300">
                 {risk_flags.map((flag: string, idx: number) => (
@@ -225,6 +247,18 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
               </div>
             ) : (
               <p>{risk_status ? "No high-risk security flags detected." : "Evaluating financial security..."}</p>
+            )}
+
+            {/* Interactive Admin Override Button for Flagged Orders */}
+            {overall_status === 'HELD_FOR_REVIEW' && (
+              <button
+                onClick={handleApprove}
+                disabled={approving}
+                className="w-full py-1.5 px-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-lg font-bold text-[11px] flex items-center justify-center space-x-1 shadow transition"
+              >
+                <Check className="h-3.5 w-3.5" />
+                <span>{approving ? "Approving..." : "Override Risk Flag & Approve Order"}</span>
+              </button>
             )}
           </div>
         </div>
@@ -240,13 +274,13 @@ export const TelemetryPanel: React.FC<TelemetryPanelProps> = ({
           <span>View Telemetry Audit Log ({audit_logs?.length || 0} events)</span>
         </button>
 
-        {invoice_pdf_url && (
+        {formattedPdfUrl && (
           <button
             onClick={onOpenInvoiceModal}
             className="flex items-center space-x-2 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-xs shadow-lg shadow-emerald-500/20 transition"
           >
             <FileText className="h-4 w-4" />
-            <span>View Cloudinary Invoice PDF</span>
+            <span>View Invoice PDF</span>
             <ExternalLink className="h-3.5 w-3.5" />
           </button>
         )}

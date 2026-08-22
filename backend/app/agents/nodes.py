@@ -146,6 +146,21 @@ async def inventory_node(state: O2CState) -> Dict[str, Any]:
             elif override_action == "KEEP_PARTIAL":
                 allocated_qty = avail_qty
                 backordered_qty = max(0, requested_qty - avail_qty)
+            elif override_action == "SUBSTITUTE":
+                # Substitute with available in-stock SKU
+                sub_stmt = select(InventorySKU).where(InventorySKU.available_quantity > 0)
+                sub_skus = (await session.execute(sub_stmt)).scalars().all()
+                if sub_skus:
+                    sub_sku = sub_skus[0]
+                    sku_code = sub_sku.sku
+                    sku_obj = sub_sku
+                    avail_qty = sku_obj.available_quantity
+                    allocated_qty = min(requested_qty, avail_qty)
+                    backordered_qty = max(0, requested_qty - allocated_qty)
+                    unit_price = sku_obj.unit_price
+                else:
+                    allocated_qty = avail_qty
+                    backordered_qty = max(0, requested_qty - avail_qty)
             else:
                 if avail_qty >= requested_qty:
                     allocated_qty = requested_qty

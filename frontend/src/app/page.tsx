@@ -147,6 +147,21 @@ export default function Home() {
             onOpenValidationErrorModal={() => setIsValidationModalOpen(true)}
             onOpenAuditModal={() => setIsAuditModalOpen(true)}
             onOpenInvoiceModal={() => setIsInvoiceModalOpen(true)}
+            onApproveOrder={() => {
+              setCurrentState((prev: any) => ({
+                ...(prev || {}),
+                overall_status: "COMPLETED",
+                audit_logs: [
+                  ...(prev?.audit_logs || []),
+                  {
+                    agent_name: "RiskAgent",
+                    status: "SUCCESS",
+                    message: "Manual Admin Approval Granted. Risk flag overridden.",
+                    timestamp: new Date().toISOString()
+                  }
+                ]
+              }));
+            }}
           />
         </section>
       </main>
